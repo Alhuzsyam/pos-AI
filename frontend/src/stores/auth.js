@@ -1,0 +1,50 @@
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import api from '@/composables/useApi'
+import router from '@/router'
+
+export const useAuthStore = defineStore('auth', () => {
+  const user = ref(JSON.parse(localStorage.getItem('posai_user') || 'null'))
+  const accessToken = ref(localStorage.getItem('posai_token') || null)
+
+  const isAuthenticated = computed(() => !!accessToken.value)
+  const isSuperAdmin = computed(() => user.value?.role === 'superadmin')
+  const isAdmin = computed(() => ['superadmin', 'admin'].includes(user.value?.role))
+  const isManager = computed(() => ['superadmin', 'admin', 'manager'].includes(user.value?.role))
+  const isKasir = computed(() => ['superadmin', 'admin', 'manager', 'kasir'].includes(user.value?.role))
+
+  function can(role) {
+    const hierarchy = { superadmin: 5, admin: 4, manager: 3, kasir: 2, inventory: 1 }
+    return (hierarchy[user.value?.role] || 0) >= (hierarchy[role] || 0)
+  }
+
+  async function login(username, password) {
+    const form = new FormData()
+    form.append('username', username)
+    form.append('password', password)
+
+    const res = await api.post('/api/v1/auth/login', form, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    })
+
+    accessToken.value = res.data.access_token
+    user.value = res.data.user
+
+    localStorage.setItem('posai_token', res.data.access_token)
+    localStorage.setItem('posai_user', JSON.stringify(res.data.user))
+    localStorage.setItem('posai_refresh', res.data.refresh_token)
+
+    return res.data
+  }
+
+  function logout() {
+    accessToken.value = null
+    user.value = null
+    localStorage.removeItem('posai_token')
+    localStorage.removeItem('posai_user')
+    localStorage.removeItem('posai_refresh')
+    router.push('/login')
+  }
+
+  return { user, accessToken, isAuthenticated, isSuperAdmin, isAdmin, isManager, isKasir, can, login, logout }
+})
