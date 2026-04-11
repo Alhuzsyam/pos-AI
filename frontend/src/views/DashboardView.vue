@@ -1,10 +1,10 @@
 <template>
   <div class="p-6 max-w-7xl mx-auto">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center justify-between mb-8">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p class="text-sm text-gray-400">{{ today }}</p>
+        <h1 class="page-title">Dashboard</h1>
+        <p class="page-subtitle">{{ today }}</p>
       </div>
       <button @click="loadData" class="btn-secondary btn-sm">
         <svg class="w-4 h-4" :class="loading && 'animate-spin'" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -76,7 +76,7 @@
       <!-- Revenue Chart -->
       <div class="card p-5 lg:col-span-2">
         <div class="flex items-center justify-between mb-4">
-          <h3 class="font-semibold text-gray-900">Revenue 30 Hari</h3>
+          <h3 class="font-serif text-[18px] text-claude-ink">Revenue 30 Hari</h3>
         </div>
         <div class="h-48">
           <LineChart v-if="chartData.labels.length" :data="chartData" :options="chartOptions" />
@@ -86,7 +86,7 @@
 
       <!-- Top Menu -->
       <div class="card p-5">
-        <h3 class="font-semibold text-gray-900 mb-4">Top Menu Hari Ini</h3>
+        <h3 class="font-serif text-[18px] text-claude-ink mb-4">Top Menu Hari Ini</h3>
         <div v-if="data?.top_menu_today?.length" class="space-y-3">
           <div v-for="(item, i) in data.top_menu_today" :key="item.name" class="flex items-center gap-3">
             <span class="text-xs font-bold text-gray-300 w-5">{{ i + 1 }}</span>
@@ -125,8 +125,8 @@ const chartData = computed(() => ({
   datasets: [{
     label: 'Revenue',
     data: revenueHistory.value.map(r => r.revenue),
-    borderColor: '#15803d',
-    backgroundColor: 'rgba(21,128,61,0.08)',
+    borderColor: '#c96442',
+    backgroundColor: 'rgba(201,100,66,0.10)',
     tension: 0.4,
     fill: true,
     pointRadius: 3,
@@ -138,8 +138,8 @@ const chartOptions = {
   maintainAspectRatio: false,
   plugins: { legend: { display: false } },
   scales: {
-    x: { grid: { display: false }, ticks: { font: { size: 11 } } },
-    y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 11 }, callback: v => `${(v/1000).toFixed(0)}k` } },
+    x: { grid: { display: false }, ticks: { color: '#6b6558', font: { size: 11 } } },
+    y: { grid: { color: '#efece3' }, ticks: { color: '#6b6558', font: { size: 11 }, callback: v => `${(v/1000).toFixed(0)}k` } },
   }
 }
 

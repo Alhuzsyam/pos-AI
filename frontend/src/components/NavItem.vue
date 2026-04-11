@@ -2,14 +2,14 @@
   <RouterLink
     :to="to"
     :class="[
-      'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
+      'flex items-center gap-3 px-3 py-2 rounded-md text-[13px] font-medium transition-colors',
       isActive
-        ? 'bg-brand-50 text-brand-700'
-        : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+        ? 'bg-white text-claude-ink shadow-claude-sm border border-claude-line'
+        : 'text-claude-slate hover:bg-white/60 hover:text-claude-ink border border-transparent'
     ]"
     :title="label || to"
   >
-    <component :is="iconComponent" class="w-5 h-5 flex-shrink-0" />
+    <component :is="iconComponent" class="w-[18px] h-[18px] flex-shrink-0" />
     <span v-if="label" class="truncate">{{ label }}</span>
   </RouterLink>
 </template>

@@ -15,7 +15,7 @@ from app.models.user import User
 from app.models.pos import Sale, SaleItem, Expense, MenuItem
 from app.models.inventory import Product, StockMovement
 from app.models.ai_log import AIQueryLog
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, resolve_tenant_id
 
 router = APIRouter(prefix="/api/v1/ai", tags=["AI & Agents"])
 
@@ -186,7 +186,7 @@ def execute_tool(
     Eksekusi tool call langsung (untuk agentic framework).
     Agent bisa call ini setelah decide tool dari /ai/tools.
     """
-    tid = current_user.tenant_id
+    tid = resolve_tenant_id(current_user, db)
     start = time.time()
     result = _dispatch_tool(body.tool_name, body.arguments, tid, current_user, db)
     latency = int((time.time() - start) * 1000)
@@ -217,7 +217,7 @@ def get_business_context(
     Berikan konteks bisnis lengkap untuk AI agent.
     Agent bisa inject ini ke system prompt.
     """
-    tid = current_user.tenant_id
+    tid = resolve_tenant_id(current_user, db)
     today = date.today()
     first_of_month = today.replace(day=1)
 
@@ -269,8 +269,9 @@ def get_ai_logs(
     current_user: User = Depends(get_current_user),
 ):
     """Riwayat semua AI query untuk audit."""
+    tid = resolve_tenant_id(current_user, db)
     logs = db.query(AIQueryLog).filter(
-        AIQueryLog.tenant_id == current_user.tenant_id
+        AIQueryLog.tenant_id == tid
     ).order_by(AIQueryLog.created_at.desc()).limit(limit).all()
     return logs
 

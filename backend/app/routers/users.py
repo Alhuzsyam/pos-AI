@@ -6,7 +6,7 @@ from typing import Optional, List
 
 from app.database import get_db
 from app.models.user import User, UserRole
-from app.core.deps import require_admin, require_manager, get_current_user
+from app.core.deps import require_admin, require_manager, get_current_user, resolve_tenant_id
 from app.core.security import hash_password
 
 router = APIRouter(prefix="/api/v1/users", tags=["Users"])
@@ -50,8 +50,8 @@ def list_users(
     current_user: User = Depends(require_manager),
 ):
     q = db.query(User).filter(User.role != UserRole.SUPERADMIN)
-    if current_user.role != UserRole.SUPERADMIN:
-        q = q.filter(User.tenant_id == current_user.tenant_id)
+    tid = resolve_tenant_id(current_user, db)
+    q = q.filter(User.tenant_id == tid)
     return [_user_dict(u) for u in q.all()]
 
 
@@ -68,7 +68,7 @@ def create_user(
         raise HTTPException(status_code=400, detail="Username sudah dipakai")
 
     user = User(
-        tenant_id=current_user.tenant_id,
+        tenant_id=resolve_tenant_id(current_user, db),
         username=body.username,
         full_name=body.full_name or body.username,
         email=body.email,
@@ -88,9 +88,10 @@ def update_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
+    tid = resolve_tenant_id(current_user, db)
     user = db.query(User).filter(
         User.id == user_id,
-        User.tenant_id == current_user.tenant_id,
+        User.tenant_id == tid,
     ).first()
     if not user:
         raise HTTPException(status_code=404, detail="User tidak ditemukan")
@@ -115,9 +116,10 @@ def delete_user(
     if user_id == current_user.id:
         raise HTTPException(status_code=400, detail="Tidak bisa hapus diri sendiri")
 
+    tid = resolve_tenant_id(current_user, db)
     user = db.query(User).filter(
         User.id == user_id,
-        User.tenant_id == current_user.tenant_id,
+        User.tenant_id == tid,
     ).first()
     if not user:
         raise HTTPException(status_code=404, detail="User tidak ditemukan")

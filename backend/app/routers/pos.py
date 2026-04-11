@@ -14,7 +14,10 @@ from app.models.pos import (
     Expense, Debt, DebtItem, Reservation, ReservationItem
 )
 from app.models.inventory import Product, StockMovement
-from app.core.deps import get_current_user, require_kasir, require_manager, require_admin
+from app.core.deps import (
+    get_current_user, require_kasir, require_manager, require_admin,
+    resolve_tenant_id,
+)
 
 router = APIRouter(prefix="/api/v1/pos", tags=["POS"])
 
@@ -48,7 +51,8 @@ def list_menu(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    q = db.query(MenuItem).filter(MenuItem.tenant_id == current_user.tenant_id)
+    tid = resolve_tenant_id(current_user, db)
+    q = db.query(MenuItem).filter(MenuItem.tenant_id == tid)
     if search:
         q = q.filter(MenuItem.name.ilike(f"%{search}%"))
     if division:
@@ -64,7 +68,8 @@ def create_menu_item(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_manager),
 ):
-    item = MenuItem(tenant_id=current_user.tenant_id, **body.model_dump())
+    tid = resolve_tenant_id(current_user, db)
+    item = MenuItem(tenant_id=tid, **body.model_dump())
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -78,9 +83,10 @@ def update_menu_item(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_manager),
 ):
+    tid = resolve_tenant_id(current_user, db)
     item = db.query(MenuItem).filter(
         MenuItem.id == item_id,
-        MenuItem.tenant_id == current_user.tenant_id
+        MenuItem.tenant_id == tid,
     ).first()
     if not item:
         raise HTTPException(status_code=404, detail="Menu tidak ditemukan")
@@ -99,9 +105,10 @@ def delete_menu_item(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
+    tid = resolve_tenant_id(current_user, db)
     item = db.query(MenuItem).filter(
         MenuItem.id == item_id,
-        MenuItem.tenant_id == current_user.tenant_id
+        MenuItem.tenant_id == tid,
     ).first()
     if not item:
         raise HTTPException(status_code=404, detail="Menu tidak ditemukan")
@@ -141,8 +148,9 @@ def list_sales(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    tid = resolve_tenant_id(current_user, db)
     q = db.query(Sale).options(joinedload(Sale.items)).filter(
-        Sale.tenant_id == current_user.tenant_id
+        Sale.tenant_id == tid
     )
     if date_from:
         q = q.filter(func.date(Sale.transaction_date) >= date_from)
@@ -160,13 +168,14 @@ def create_sale(
     if not body.items:
         raise HTTPException(status_code=400, detail="Minimal 1 item transaksi")
 
+    tid = resolve_tenant_id(current_user, db)
     total = sum(i.quantity * i.price_at_moment for i in body.items)
     tax = total * 0.0   # bisa dikonfigurasi per-tenant nanti
     final = total - body.discount_amount + tax
 
     sale = Sale(
-        tenant_id=current_user.tenant_id,
-        transaction_code=_generate_transaction_code(current_user.tenant_id),
+        tenant_id=tid,
+        transaction_code=_generate_transaction_code(tid),
         total_amount=total,
         discount_amount=body.discount_amount,
         tax_amount=tax,
@@ -198,14 +207,14 @@ def create_sale(
             for recipe in recipes:
                 product = db.query(Product).filter(
                     Product.id == recipe.product_id,
-                    Product.tenant_id == current_user.tenant_id,
+                    Product.tenant_id == tid,
                 ).first()
                 if product:
                     deduct = recipe.amount_needed * item_in.quantity
                     product.current_stock = max(0, product.current_stock - int(deduct))
                     db.add(StockMovement(
                         id=str(uuid.uuid4()),
-                        tenant_id=current_user.tenant_id,
+                        tenant_id=tid,
                         product_id=product.id,
                         qty_change=-int(deduct),
                         balance_after=product.current_stock,
@@ -225,9 +234,10 @@ def get_sale(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    tid = resolve_tenant_id(current_user, db)
     sale = db.query(Sale).options(joinedload(Sale.items)).filter(
         Sale.id == sale_id,
-        Sale.tenant_id == current_user.tenant_id,
+        Sale.tenant_id == tid,
     ).first()
     if not sale:
         raise HTTPException(status_code=404, detail="Transaksi tidak ditemukan")
@@ -251,7 +261,8 @@ def list_expenses(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    q = db.query(Expense).filter(Expense.tenant_id == current_user.tenant_id)
+    tid = resolve_tenant_id(current_user, db)
+    q = db.query(Expense).filter(Expense.tenant_id == tid)
     if date_from:
         q = q.filter(Expense.purchase_date >= date_from)
     if date_to:
@@ -265,8 +276,9 @@ def create_expense(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_kasir),
 ):
+    tid = resolve_tenant_id(current_user, db)
     expense = Expense(
-        tenant_id=current_user.tenant_id,
+        tenant_id=tid,
         created_by=current_user.username,
         **body.model_dump(),
     )
@@ -299,8 +311,9 @@ def list_debts(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    tid = resolve_tenant_id(current_user, db)
     q = db.query(Debt).options(joinedload(Debt.items)).filter(
-        Debt.tenant_id == current_user.tenant_id
+        Debt.tenant_id == tid
     )
     if is_paid is not None:
         q = q.filter(Debt.is_paid == is_paid)
@@ -313,9 +326,10 @@ def create_debt(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_kasir),
 ):
+    tid = resolve_tenant_id(current_user, db)
     total = sum(i.quantity * i.price_at_moment for i in body.items)
     debt = Debt(
-        tenant_id=current_user.tenant_id,
+        tenant_id=tid,
         customer_name=body.customer_name,
         phone=body.phone,
         total_amount=total,
@@ -345,9 +359,10 @@ def pay_debt(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_kasir),
 ):
+    tid = resolve_tenant_id(current_user, db)
     debt = db.query(Debt).filter(
         Debt.id == debt_id,
-        Debt.tenant_id == current_user.tenant_id,
+        Debt.tenant_id == tid,
     ).first()
     if not debt:
         raise HTTPException(status_code=404, detail="Hutang tidak ditemukan")
@@ -387,8 +402,9 @@ def list_reservations(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    tid = resolve_tenant_id(current_user, db)
     q = db.query(Reservation).options(joinedload(Reservation.items)).filter(
-        Reservation.tenant_id == current_user.tenant_id
+        Reservation.tenant_id == tid
     )
     if status:
         q = q.filter(Reservation.status == status)
@@ -401,9 +417,10 @@ def create_reservation(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_kasir),
 ):
+    tid = resolve_tenant_id(current_user, db)
     total = sum(i.quantity * i.price_at_moment for i in body.items)
     res = Reservation(
-        tenant_id=current_user.tenant_id,
+        tenant_id=tid,
         customer_name=body.customer_name,
         phone=body.phone,
         table_number=body.table_number,
@@ -439,9 +456,10 @@ def update_reservation_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_kasir),
 ):
+    tid = resolve_tenant_id(current_user, db)
     res = db.query(Reservation).filter(
         Reservation.id == res_id,
-        Reservation.tenant_id == current_user.tenant_id,
+        Reservation.tenant_id == tid,
     ).first()
     if not res:
         raise HTTPException(status_code=404, detail="Reservasi tidak ditemukan")

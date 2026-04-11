@@ -41,6 +41,42 @@ def get_current_tenant(current_user: User = Depends(get_current_user)) -> Option
     return current_user.tenant_id
 
 
+def resolve_tenant_id(current_user: User, db: Session) -> int:
+    """
+    Tenant_id yang dipakai user ini buat operasi tenant-scoped.
+
+    - User biasa: tenant_id dari row mereka.
+    - Superadmin (tenant_id = None): fallback ke tenant pertama di DB.
+      Kalau belum ada tenant sama sekali, auto-create "Demo Cafe" biar
+      superadmin tetap bisa operasional tanpa harus setup tenant dulu.
+    """
+    if current_user.tenant_id is not None:
+        return current_user.tenant_id
+
+    tenant = db.query(Tenant).order_by(Tenant.id).first()
+    if tenant is None:
+        tenant = Tenant(
+            name="Demo Cafe",
+            slug="demo",
+            plan="basic",
+            timezone="Asia/Jakarta",
+            currency="IDR",
+            features={"whatsapp": False, "ai": True, "multi_outlet": False},
+        )
+        db.add(tenant)
+        db.commit()
+        db.refresh(tenant)
+    return tenant.id
+
+
+def get_active_tenant_id(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> int:
+    """FastAPI dep bungkus resolve_tenant_id buat dipakai via Depends()."""
+    return resolve_tenant_id(current_user, db)
+
+
 # --- Role Guards ---
 
 def require_roles(*roles: UserRole):

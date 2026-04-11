@@ -13,7 +13,7 @@ from app.models.user import User
 from app.models.tenant_settings import TenantSettings, WeeklyInsight
 from app.models.pos import Sale, SaleItem, Expense
 from app.models.inventory import Product
-from app.core.deps import get_current_user, require_admin
+from app.core.deps import get_current_user, require_admin, resolve_tenant_id
 
 router = APIRouter(prefix="/api/v1/settings", tags=["Settings"])
 
@@ -63,7 +63,7 @@ def get_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    s = _get_or_create_settings(current_user.tenant_id, db)
+    s = _get_or_create_settings(resolve_tenant_id(current_user, db), db)
     return {
         "ai_provider": s.ai_provider,
         "ai_model": s.ai_model,
@@ -90,7 +90,7 @@ def update_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    s = _get_or_create_settings(current_user.tenant_id, db)
+    s = _get_or_create_settings(resolve_tenant_id(current_user, db), db)
 
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(s, field, value)
@@ -111,8 +111,9 @@ def get_weekly_insights(
     current_user: User = Depends(get_current_user),
 ):
     """Ambil riwayat weekly insights."""
+    tid = resolve_tenant_id(current_user, db)
     insights = db.query(WeeklyInsight).filter(
-        WeeklyInsight.tenant_id == current_user.tenant_id
+        WeeklyInsight.tenant_id == tid
     ).order_by(WeeklyInsight.created_at.desc()).limit(limit).all()
     return insights
 
@@ -124,7 +125,7 @@ async def generate_weekly_insight(
     current_user: User = Depends(require_admin),
 ):
     """Generate weekly insight on-demand menggunakan API key tenant sendiri."""
-    s = _get_or_create_settings(current_user.tenant_id, db)
+    s = _get_or_create_settings(resolve_tenant_id(current_user, db), db)
 
     if not any([s.openai_api_key, s.gemini_api_key, s.groq_api_key]):
         raise HTTPException(
@@ -133,11 +134,12 @@ async def generate_weekly_insight(
         )
 
     # Collect metrics
-    metrics = _collect_metrics(current_user.tenant_id, db)
+    tid = resolve_tenant_id(current_user, db)
+    metrics = _collect_metrics(tid, db)
 
     background_tasks.add_task(
         _generate_insight_background,
-        tenant_id=current_user.tenant_id,
+        tenant_id=tid,
         settings=s,
         metrics=metrics,
     )
@@ -151,8 +153,9 @@ def get_latest_insight(
     current_user: User = Depends(get_current_user),
 ):
     """Ambil insight terbaru."""
+    tid = resolve_tenant_id(current_user, db)
     insight = db.query(WeeklyInsight).filter(
-        WeeklyInsight.tenant_id == current_user.tenant_id
+        WeeklyInsight.tenant_id == tid
     ).order_by(WeeklyInsight.created_at.desc()).first()
 
     if not insight:

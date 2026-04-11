@@ -27,14 +27,34 @@ Base.metadata.create_all(bind=engine)
 print('Tables created.')
 "
 
-echo "Seeding superadmin..."
+echo "Seeding default tenant + superadmin..."
 python -c "
 import os
 from app.database import SessionLocal
+from app.models.tenant import Tenant
 from app.models.user import User, UserRole
 from app.core.security import hash_password
 
 db = SessionLocal()
+
+# Demo tenant — dipakai superadmin sebagai default working tenant.
+# resolve_tenant_id() akan jatuh ke tenant pertama kalau user.tenant_id NULL,
+# jadi kita pastiin selalu ada minimal satu tenant di DB.
+if not db.query(Tenant).first():
+    demo = Tenant(
+        name='Demo Cafe',
+        slug='demo',
+        plan='basic',
+        timezone='Asia/Jakarta',
+        currency='IDR',
+        features={'whatsapp': False, 'ai': True, 'multi_outlet': False},
+    )
+    db.add(demo)
+    db.commit()
+    print('Demo tenant created.')
+else:
+    print('Tenant sudah ada.')
+
 existing = db.query(User).filter(User.username == 'superadmin').first()
 if not existing:
     superadmin = User(

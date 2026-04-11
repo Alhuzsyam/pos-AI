@@ -9,7 +9,7 @@ from app.database import get_db
 from app.models.user import User
 from app.models.pos import Sale, SaleItem, Expense, MenuItem
 from app.models.inventory import Product, StockMovement
-from app.core.deps import get_current_user, require_manager
+from app.core.deps import get_current_user, require_manager, resolve_tenant_id
 
 router = APIRouter(prefix="/api/v1/reports", tags=["Reports"])
 
@@ -20,7 +20,7 @@ def dashboard_summary(
     current_user: User = Depends(get_current_user),
 ):
     """KPI summary untuk dashboard utama."""
-    tid = current_user.tenant_id
+    tid = resolve_tenant_id(current_user, db)
     today = date.today()
     first_of_month = today.replace(day=1)
 
@@ -98,7 +98,7 @@ def daily_revenue(
     current_user: User = Depends(get_current_user),
 ):
     """Revenue per hari untuk chart."""
-    tid = current_user.tenant_id
+    tid = resolve_tenant_id(current_user, db)
     date_from = date.today() - timedelta(days=days)
 
     rows = db.query(
@@ -121,7 +121,7 @@ def revenue_by_payment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    tid = current_user.tenant_id
+    tid = resolve_tenant_id(current_user, db)
     q = db.query(
         Sale.payment_method,
         func.sum(Sale.final_amount).label("total"),
@@ -144,7 +144,7 @@ def menu_performance(
     current_user: User = Depends(get_current_user),
 ):
     """Top & bottom performing menu items."""
-    tid = current_user.tenant_id
+    tid = resolve_tenant_id(current_user, db)
     date_from = date.today() - timedelta(days=days)
 
     rows = db.query(
@@ -171,7 +171,7 @@ def inventory_summary(
     current_user: User = Depends(get_current_user),
 ):
     """Ringkasan stok untuk semua produk."""
-    tid = current_user.tenant_id
+    tid = resolve_tenant_id(current_user, db)
     products = db.query(Product).filter(Product.tenant_id == tid).all()
 
     total_value = sum(p.current_stock * p.cost_price for p in products)

@@ -1,26 +1,27 @@
 <template>
-  <div class="flex h-screen overflow-hidden bg-surface">
+  <div class="flex h-screen overflow-hidden bg-claude-paper">
     <!-- Sidebar -->
     <aside
       :class="[
-        'flex flex-col bg-white border-r border-gray-100 transition-all duration-300 z-30',
-        collapsed ? 'w-16' : 'w-60',
+        'flex flex-col bg-claude-paper border-r border-claude-line transition-all duration-300 z-30',
+        collapsed ? 'w-16' : 'w-64',
         'hidden md:flex'
       ]"
     >
       <!-- Brand -->
-      <div class="flex items-center gap-3 px-4 py-5 border-b border-gray-100">
-        <div class="w-8 h-8 bg-brand-700 rounded-xl flex items-center justify-center flex-shrink-0">
-          <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
+      <div class="flex items-center gap-3 px-5 py-5">
+        <div class="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center flex-shrink-0">
+          <span class="font-serif text-white text-[15px] leading-none">P</span>
         </div>
-        <div v-if="!collapsed" class="min-w-0">
-          <p class="font-bold text-gray-900 text-sm leading-tight">POS-AI</p>
-          <p class="text-xs text-gray-400 truncate">{{ auth.user?.tenant_name || 'SaaS Platform' }}</p>
+        <div v-if="!collapsed" class="min-w-0 flex-1">
+          <p class="font-serif text-[15px] text-claude-ink leading-tight">POS-AI</p>
+          <p class="text-[11px] text-claude-dust truncate">{{ auth.user?.tenant_name || 'SaaS Platform' }}</p>
         </div>
-        <button @click="collapsed = !collapsed" class="ml-auto text-gray-400 hover:text-gray-600 hidden md:block flex-shrink-0">
+        <button
+          @click="collapsed = !collapsed"
+          class="text-claude-dust hover:text-claude-graphite transition-colors flex-shrink-0"
+          :title="collapsed ? 'Buka sidebar' : 'Tutup sidebar'"
+        >
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               :d="collapsed ? 'M9 5l7 7-7 7' : 'M15 19l-7-7 7-7'" />
@@ -29,7 +30,7 @@
       </div>
 
       <!-- Nav -->
-      <nav class="flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
+      <nav class="flex-1 overflow-y-auto py-3 px-3 space-y-0.5">
         <NavItem to="/" icon="chart-pie" :label="collapsed ? '' : 'Dashboard'" exact />
 
         <NavGroup v-if="!collapsed" label="Operasional" />
@@ -53,17 +54,22 @@
         <NavItem to="/settings" icon="cog" :label="collapsed ? '' : 'Pengaturan'" />
       </nav>
 
-      <!-- User -->
-      <div class="border-t border-gray-100 p-3">
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 bg-brand-100 rounded-xl flex items-center justify-center flex-shrink-0">
-            <span class="text-brand-700 font-bold text-xs">{{ initials }}</span>
+      <!-- User footer -->
+      <div class="border-t border-claude-line px-3 py-3">
+        <div class="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-white transition-colors">
+          <div class="w-8 h-8 bg-brand-50 border border-brand-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <span class="text-brand-600 font-semibold text-[11px]">{{ initials }}</span>
           </div>
           <div v-if="!collapsed" class="flex-1 min-w-0">
-            <p class="text-sm font-semibold text-gray-800 truncate">{{ auth.user?.full_name || auth.user?.username }}</p>
-            <p class="text-xs text-gray-400 capitalize">{{ auth.user?.role }}</p>
+            <p class="text-[13px] font-medium text-claude-ink truncate">{{ auth.user?.full_name || auth.user?.username }}</p>
+            <p class="text-[11px] text-claude-dust capitalize">{{ auth.user?.role }}</p>
           </div>
-          <button @click="auth.logout()" class="text-gray-400 hover:text-red-500 transition-colors" title="Logout">
+          <button
+            v-if="!collapsed"
+            @click="auth.logout()"
+            class="text-claude-dust hover:text-brand-600 transition-colors"
+            title="Logout"
+          >
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -76,13 +82,13 @@
     <!-- Main content -->
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
       <!-- Mobile topbar -->
-      <header class="md:hidden bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3">
-        <button @click="mobileOpen = !mobileOpen" class="text-gray-600">
+      <header class="md:hidden bg-claude-paper border-b border-claude-line px-4 py-3 flex items-center gap-3">
+        <button @click="mobileOpen = !mobileOpen" class="text-claude-graphite">
           <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <span class="font-bold text-gray-900">POS-AI</span>
+        <span class="font-serif text-[16px] text-claude-ink">POS-AI</span>
       </header>
 
       <!-- Page content -->
@@ -94,13 +100,22 @@
     <!-- Mobile drawer overlay -->
     <Teleport to="body">
       <div v-if="mobileOpen" class="fixed inset-0 z-50 md:hidden">
-        <div class="absolute inset-0 bg-black/50" @click="mobileOpen = false" />
-        <aside class="absolute left-0 top-0 bottom-0 w-64 bg-white flex flex-col">
-          <div class="p-4 border-b flex items-center justify-between">
-            <span class="font-bold text-lg">POS-AI</span>
-            <button @click="mobileOpen = false"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+        <div class="absolute inset-0 bg-claude-ink/40" @click="mobileOpen = false" />
+        <aside class="absolute left-0 top-0 bottom-0 w-64 bg-claude-paper flex flex-col border-r border-claude-line">
+          <div class="p-4 border-b border-claude-line flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
+                <span class="font-serif text-white text-[15px] leading-none">P</span>
+              </div>
+              <span class="font-serif text-[16px] text-claude-ink">POS-AI</span>
+            </div>
+            <button @click="mobileOpen = false" class="text-claude-slate">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <nav class="flex-1 overflow-y-auto py-4 px-2 space-y-0.5" @click="mobileOpen = false">
+          <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-0.5" @click="mobileOpen = false">
             <NavItem to="/" icon="chart-pie" label="Dashboard" exact />
             <NavItem to="/pos" icon="cash-register" label="Kasir / POS" />
             <NavItem to="/sales" icon="receipt" label="Riwayat Transaksi" />
@@ -113,6 +128,7 @@
             <NavItem to="/ai" icon="sparkles" label="AI Assistant" />
             <NavItem to="/users" icon="users" label="Pengguna" v-if="auth.isAdmin" />
             <NavItem to="/tenants" icon="office-building" label="Tenant" v-if="auth.isSuperAdmin" />
+            <NavItem to="/settings" icon="cog" label="Pengaturan" />
           </nav>
         </aside>
       </div>

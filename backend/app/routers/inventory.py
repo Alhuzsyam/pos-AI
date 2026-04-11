@@ -10,7 +10,7 @@ from app.models.user import User
 from app.models.inventory import Category, Product, StockMovement
 from app.core.deps import (
     get_current_user, require_inventory, require_manager,
-    require_admin, get_tenant_filter, apply_tenant_filter
+    require_admin, resolve_tenant_id,
 )
 
 router = APIRouter(prefix="/api/v1/inventory", tags=["Inventory"])
@@ -27,11 +27,9 @@ class CategoryCreate(BaseModel):
 def list_categories(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    tenant_id: Optional[int] = Depends(get_tenant_filter),
 ):
-    q = db.query(Category)
-    q = apply_tenant_filter(q, Category, tenant_id or current_user.tenant_id)
-    return q.all()
+    tid = resolve_tenant_id(current_user, db)
+    return db.query(Category).filter(Category.tenant_id == tid).all()
 
 
 @router.post("/categories", status_code=201)
@@ -40,7 +38,8 @@ def create_category(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_inventory),
 ):
-    cat = Category(tenant_id=current_user.tenant_id, **body.model_dump())
+    tid = resolve_tenant_id(current_user, db)
+    cat = Category(tenant_id=tid, **body.model_dump())
     db.add(cat)
     db.commit()
     db.refresh(cat)
@@ -82,7 +81,7 @@ def list_products(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    tid = current_user.tenant_id
+    tid = resolve_tenant_id(current_user, db)
     q = db.query(Product).filter(Product.tenant_id == tid)
 
     if search:
@@ -101,7 +100,8 @@ def create_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_inventory),
 ):
-    product = Product(tenant_id=current_user.tenant_id, **body.model_dump())
+    tid = resolve_tenant_id(current_user, db)
+    product = Product(tenant_id=tid, **body.model_dump())
     db.add(product)
     db.commit()
     db.refresh(product)
@@ -114,9 +114,10 @@ def get_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    tid = resolve_tenant_id(current_user, db)
     p = db.query(Product).filter(
         Product.id == product_id,
-        Product.tenant_id == current_user.tenant_id
+        Product.tenant_id == tid,
     ).first()
     if not p:
         raise HTTPException(status_code=404, detail="Produk tidak ditemukan")
@@ -130,9 +131,10 @@ def update_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_inventory),
 ):
+    tid = resolve_tenant_id(current_user, db)
     p = db.query(Product).filter(
         Product.id == product_id,
-        Product.tenant_id == current_user.tenant_id
+        Product.tenant_id == tid,
     ).first()
     if not p:
         raise HTTPException(status_code=404, detail="Produk tidak ditemukan")
@@ -151,9 +153,10 @@ def delete_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
+    tid = resolve_tenant_id(current_user, db)
     p = db.query(Product).filter(
         Product.id == product_id,
-        Product.tenant_id == current_user.tenant_id
+        Product.tenant_id == tid,
     ).first()
     if not p:
         raise HTTPException(status_code=404, detail="Produk tidak ditemukan")
@@ -178,7 +181,8 @@ def list_movements(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    q = db.query(StockMovement).filter(StockMovement.tenant_id == current_user.tenant_id)
+    tid = resolve_tenant_id(current_user, db)
+    q = db.query(StockMovement).filter(StockMovement.tenant_id == tid)
     if product_id:
         q = q.filter(StockMovement.product_id == product_id)
     return q.order_by(StockMovement.created_at.desc()).limit(limit).all()
@@ -190,9 +194,10 @@ def create_movement(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_inventory),
 ):
+    tid = resolve_tenant_id(current_user, db)
     product = db.query(Product).filter(
         Product.id == body.product_id,
-        Product.tenant_id == current_user.tenant_id
+        Product.tenant_id == tid,
     ).first()
     if not product:
         raise HTTPException(status_code=404, detail="Produk tidak ditemukan")
@@ -203,7 +208,7 @@ def create_movement(
 
     movement = StockMovement(
         id=str(uuid.uuid4()),
-        tenant_id=current_user.tenant_id,
+        tenant_id=tid,
         product_id=body.product_id,
         qty_change=body.qty_change,
         balance_after=product.current_stock,

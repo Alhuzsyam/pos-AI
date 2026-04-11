@@ -1,7 +1,10 @@
 <template>
   <div class="p-6 max-w-6xl mx-auto">
-    <div class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl font-bold text-gray-900">Inventori</h1>
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="page-title">Inventori</h1>
+        <p class="page-subtitle">Kelola stok bahan baku & produk</p>
+      </div>
       <button @click="showModal = true" class="btn-primary">+ Tambah Produk</button>
     </div>
 
@@ -60,7 +63,7 @@
     <!-- Add Product Modal -->
     <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
       <div class="card p-6 w-full max-w-md">
-        <h2 class="font-bold text-gray-900 mb-4">Tambah Produk</h2>
+        <h2 class="font-serif text-[22px] text-claude-ink mb-5">Tambah Produk</h2>
         <form @submit.prevent="addProduct" class="space-y-3">
           <div><label class="label">Nama</label><input v-model="form.name" class="input" required /></div>
           <div><label class="label">SKU</label><input v-model="form.sku" class="input" placeholder="Opsional" /></div>
@@ -83,8 +86,8 @@
     <!-- Stock Movement Modal -->
     <div v-if="movModal.show" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
       <div class="card p-6 w-full max-w-sm">
-        <h2 class="font-bold text-gray-900 mb-1">{{ movModal.type === 'IN' ? 'Tambah' : 'Kurangi' }} Stok</h2>
-        <p class="text-sm text-gray-400 mb-4">{{ movModal.product?.name }}</p>
+        <h2 class="font-serif text-[22px] text-claude-ink mb-1">{{ movModal.type === 'IN' ? 'Tambah' : 'Kurangi' }} Stok</h2>
+        <p class="text-[13px] text-claude-slate mb-5">{{ movModal.product?.name }}</p>
         <div class="space-y-3">
           <div><label class="label">Jumlah</label><input v-model.number="movModal.qty" type="number" class="input" min="1" /></div>
           <div><label class="label">Catatan</label><input v-model="movModal.notes" class="input" placeholder="Opsional" /></div>
