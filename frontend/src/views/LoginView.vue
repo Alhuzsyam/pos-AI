@@ -1,50 +1,106 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-900 via-brand-800 to-brand-700 p-4">
-    <div class="w-full max-w-md">
-      <!-- Logo -->
-      <div class="text-center mb-8">
-        <div class="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-2xl backdrop-blur mb-4">
-          <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
+  <div class="min-h-screen flex flex-col bg-[#faf9f5]">
+    <!-- Top brand bar -->
+    <header class="px-8 py-6">
+      <span class="font-serif text-xl text-[#1f1e1d]">POS-AI</span>
+    </header>
+
+    <!-- Centered login -->
+    <main class="flex-1 flex items-center justify-center px-6 pb-24">
+      <div class="w-full max-w-[400px]">
+        <!-- Heading -->
+        <div class="text-center mb-10">
+          <h1 class="font-serif text-[44px] leading-[1.05] tracking-tight text-[#1f1e1d]">
+            Masuk ke POS-AI
+          </h1>
+          <p class="mt-4 text-[15px] text-[#6b6558]">
+            Multi-Tenant Point of Sale dengan AI
+          </p>
         </div>
-        <h1 class="text-3xl font-bold text-white">POS-AI</h1>
-        <p class="text-brand-200 mt-1 text-sm">Multi-Tenant Point of Sale</p>
-      </div>
 
-      <!-- Card -->
-      <div class="card p-8">
-        <h2 class="text-xl font-bold text-gray-900 mb-6">Masuk ke akun kamu</h2>
-
+        <!-- Form -->
         <form @submit.prevent="handleLogin" class="space-y-4">
           <div>
-            <label class="label">Username</label>
-            <input v-model="form.username" type="text" class="input" placeholder="username" required autocomplete="username" />
-          </div>
-          <div>
-            <label class="label">Password</label>
-            <input v-model="form.password" type="password" class="input" placeholder="••••••••" required autocomplete="current-password" />
+            <label for="username" class="block text-[13px] font-medium text-[#3d3929] mb-2">
+              Username
+            </label>
+            <input
+              id="username"
+              v-model="form.username"
+              type="text"
+              placeholder="superadmin"
+              autocomplete="username"
+              required
+              class="w-full px-4 py-3 bg-white border border-[#e5e1d8] rounded-lg text-[15px] text-[#1f1e1d] placeholder-[#b8b0a3] focus:outline-none focus:border-[#c96442] focus:ring-2 focus:ring-[#c96442]/15 transition"
+            />
           </div>
 
-          <div v-if="error" class="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
+          <div>
+            <label for="password" class="block text-[13px] font-medium text-[#3d3929] mb-2">
+              Password
+            </label>
+            <input
+              id="password"
+              v-model="form.password"
+              type="password"
+              placeholder="••••••••"
+              autocomplete="current-password"
+              required
+              class="w-full px-4 py-3 bg-white border border-[#e5e1d8] rounded-lg text-[15px] text-[#1f1e1d] placeholder-[#b8b0a3] focus:outline-none focus:border-[#c96442] focus:ring-2 focus:ring-[#c96442]/15 transition"
+            />
+          </div>
+
+          <!-- Error -->
+          <div
+            v-if="error"
+            class="text-[13px] text-[#b54a2a] bg-[#fbf0ec] border border-[#f1d9cf] rounded-lg px-3.5 py-2.5"
+          >
             {{ error }}
           </div>
 
-          <button type="submit" class="btn-primary w-full justify-center py-3 mt-2" :disabled="loading">
-            <svg v-if="loading" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          <!-- Submit -->
+          <button
+            type="submit"
+            :disabled="loading"
+            class="w-full flex items-center justify-center gap-2 bg-[#c96442] hover:bg-[#b5573a] disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-3 rounded-lg transition-colors text-[15px] mt-2"
+          >
+            <svg
+              v-if="loading"
+              class="w-4 h-4 animate-spin"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              />
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+              />
             </svg>
-            {{ loading ? 'Memproses...' : 'Masuk' }}
+            <span>{{ loading ? 'Memproses...' : 'Lanjut' }}</span>
           </button>
         </form>
 
-        <p class="text-center text-xs text-gray-400 mt-6">
-          POS-AI SaaS &copy; {{ new Date().getFullYear() }}
+        <!-- Fine print -->
+        <p class="text-center text-[12px] text-[#a8a195] mt-10 leading-relaxed">
+          Dengan masuk, kamu menyetujui penggunaan sistem POS-AI
+          <br />
+          sesuai kebijakan tenant kamu.
         </p>
       </div>
-    </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="px-8 py-6 text-center text-[12px] text-[#a8a195]">
+      POS-AI SaaS &copy; {{ new Date().getFullYear() }}
+    </footer>
   </div>
 </template>
 
@@ -66,7 +122,8 @@ async function handleLogin() {
     await auth.login(form.username, form.password)
     router.push('/')
   } catch (err) {
-    error.value = err.response?.data?.detail || 'Login gagal. Cek username dan password.'
+    error.value =
+      err.response?.data?.detail || 'Login gagal. Cek username dan password.'
   } finally {
     loading.value = false
   }
