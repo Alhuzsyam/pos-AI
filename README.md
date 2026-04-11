@@ -70,7 +70,8 @@ GET  /api/v1/ai/context   → Business context untuk system prompt
 git clone https://github.com/Alhuzsyam/pos-AI.git
 cd pos-AI
 cp .env.example .env
-# Edit .env sesuai kebutuhan
+# Edit .env sesuai kebutuhan — WAJIB set DB_PASSWORD & SUPERADMIN_PASSWORD
+# sebelum first run, karena MySQL init cuma jalan sekali
 ```
 
 ### 2. Deploy
@@ -78,6 +79,10 @@ cp .env.example .env
 ```bash
 docker compose up -d --build
 ```
+
+> **Penting**: Selalu pakai `--build` kalau habis update kode. Dockerfile backend
+> pakai `COPY . .` — tanpa `--build`, Docker akan pakai image cache dan kode
+> baru tidak akan masuk ke container.
 
 ### 3. Akses
 
@@ -158,6 +163,73 @@ print(result["result"]["insights"])
 | `FRONTEND_PORT` | Port frontend | `3000` |
 
 > API key AI **tidak** disimpan di `.env`. Tiap tenant setup sendiri via UI Settings.
+
+---
+
+## Troubleshooting
+
+### Backend restart-loop dengan SQLAlchemy `InvalidRequestError`
+
+Kalau backend terus restart dan log-nya penuh `Mapper has no property ...`,
+itu berarti salah satu model relationship belum di-declare balik (missing
+`back_populates` pair). Fix sudah ada di commit `f706275` — pastikan kode
+lokal up-to-date (`git pull origin main`) dan **rebuild image**:
+
+```bash
+docker compose build --no-cache backend
+docker compose up -d backend
+```
+
+### `Access denied for user 'posai_user'@...`
+
+Ini terjadi kalau `DB_PASSWORD` di `.env` diubah setelah MySQL volume sudah
+terbuat. `MYSQL_USER` / `MYSQL_PASSWORD` cuma dipakai **sekali** pas first
+init — password lama masih ke-store di tabel `mysql.user`.
+
+**Opsi A — nuke volume (paling bersih, data hilang):**
+
+```bash
+docker compose down -v
+docker compose up -d
+```
+
+**Opsi B — update password manual (data tetap):**
+
+```bash
+docker exec -it posai_db mysql -uroot -p<DB_PASSWORD_BARU>
+```
+
+```sql
+ALTER USER 'posai_user'@'%' IDENTIFIED BY '<DB_PASSWORD_BARU>';
+FLUSH PRIVILEGES;
+EXIT;
+```
+
+```bash
+docker compose restart backend
+```
+
+### Login gagal 422 / 401 setelah fresh deploy
+
+Cek log backend dulu:
+
+```bash
+docker compose logs --tail=50 backend
+```
+
+Yang harus nongol: `Superadmin created.` → `Uvicorn running on http://0.0.0.0:8000`.
+Kalau tidak ada `Superadmin created.`, seeder-nya gagal — biasanya karena DB
+connection issue (lihat section di atas).
+
+### Kode terbaru tidak kepake setelah `git pull`
+
+Backend image di-cache. **Selalu** `--build` atau `--no-cache`:
+
+```bash
+docker compose down
+docker compose build --no-cache backend
+docker compose up -d
+```
 
 ---
 
