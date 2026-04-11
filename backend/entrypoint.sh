@@ -43,7 +43,7 @@ if not existing:
         full_name='Super Admin',
         email='admin@posai.com',
         password_hash=hash_password(os.environ.get('SUPERADMIN_PASSWORD', 'superadmin123')),
-        role=UserRole.SUPERADMIN,
+        role=UserRole.SUPERADMIN.value,
     )
     db.add(superadmin)
     db.commit()

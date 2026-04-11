@@ -19,13 +19,13 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function login(username, password) {
-    const form = new FormData()
-    form.append('username', username)
-    form.append('password', password)
+    // OAuth2PasswordRequestForm expects application/x-www-form-urlencoded.
+    // URLSearchParams makes axios set the correct Content-Type automatically.
+    const body = new URLSearchParams()
+    body.append('username', username)
+    body.append('password', password)
 
-    const res = await api.post('/api/v1/auth/login', form, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-    })
+    const res = await api.post('/api/v1/auth/login', body)
 
     accessToken.value = res.data.access_token
     user.value = res.data.user
