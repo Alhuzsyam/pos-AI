@@ -40,6 +40,16 @@
         <!-- Notes -->
         <p v-if="res.notes" class="text-xs text-gray-400 mt-2">{{ res.notes }}</p>
 
+        <!-- Print buttons -->
+        <div v-if="res.items?.length" class="flex gap-2 mt-3">
+          <button @click="printDPReceipt(res)" class="btn-secondary btn-sm flex-1 text-xs" :disabled="printer.isPrinting.value">
+            🧾 Struk DP
+          </button>
+          <button @click="printOrderList(res)" class="btn-secondary btn-sm flex-1 text-xs" :disabled="printer.isPrinting.value">
+            📋 List Pesanan
+          </button>
+        </div>
+
         <!-- Settlement info for SERVING/COMPLETED -->
         <div v-if="res.settlement_amount != null && res.status !== 'PENDING' && res.status !== 'CONFIRMED'" class="mt-3 bg-blue-50 rounded-lg p-2 text-xs text-blue-700">
           Pelunasan: {{ formatRp(res.settlement_amount) }} via {{ res.settlement_method }}
@@ -158,8 +168,10 @@ import { ref, computed, onMounted, reactive } from 'vue'
 import api from '@/composables/useApi'
 import { useToast } from 'vue-toastification'
 import dayjs from 'dayjs'
+import { usePrinter } from '@/composables/usePrinter'
 
 const toast = useToast()
+const printer = usePrinter()
 const reservations = ref([])
 const menuItems = ref([])
 const statusFilter = ref('')
@@ -271,6 +283,43 @@ async function completeReservation(res) {
     loadReservations()
   } catch (e) {
     toast.error(e.response?.data?.detail || 'Gagal selesaikan')
+  }
+}
+
+async function printDPReceipt(res) {
+  if (!printer.pairedDevice.value) {
+    try { await printer.connectPrinter() } catch { toast.error('Hubungkan printer dulu di Pengaturan'); return }
+  }
+  try {
+    const content = printer.buildReservationDPReceipt({
+      customerName: res.customer_name,
+      reservationDate: formatDate(res.reservation_date),
+      items: res.items,
+      totalAmount: res.total_amount,
+      dpAmount: res.dp_amount,
+      dpMethod: res.dp_method,
+    })
+    await printer.sendToPrinter(content)
+    toast.success('Struk DP dicetak!')
+  } catch (e) {
+    toast.error('Gagal cetak: ' + (e.message || 'Unknown'))
+  }
+}
+
+async function printOrderList(res) {
+  if (!printer.pairedDevice.value) {
+    try { await printer.connectPrinter() } catch { toast.error('Hubungkan printer dulu di Pengaturan'); return }
+  }
+  try {
+    const content = printer.buildOrderList({
+      customerName: res.customer_name,
+      tableNumber: res.table_number,
+      items: res.items,
+    })
+    await printer.sendToPrinter(content)
+    toast.success('List pesanan dicetak!')
+  } catch (e) {
+    toast.error('Gagal cetak: ' + (e.message || 'Unknown'))
   }
 }
 

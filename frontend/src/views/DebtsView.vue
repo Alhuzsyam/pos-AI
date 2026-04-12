@@ -267,8 +267,12 @@ function openAddItemsModal(debt) {
 }
 
 async function loadDebts() {
-  const res = await api.get('/api/v1/pos/debts')
-  debts.value = res.data
+  try {
+    const res = await api.get('/api/v1/pos/debts')
+    debts.value = res.data
+  } catch (e) {
+    toast.error('Gagal memuat data hutang')
+  }
 }
 
 async function loadMenu() {

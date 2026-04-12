@@ -132,8 +132,10 @@
 import { ref, computed, onMounted, reactive } from 'vue'
 import api from '@/composables/useApi'
 import { useToast } from 'vue-toastification'
+import { usePrinter } from '@/composables/usePrinter'
 
 const toast = useToast()
+const printer = usePrinter()
 const menu = ref([])
 const cart = ref([])
 const search = ref('')
@@ -216,6 +218,34 @@ async function checkout() {
 async function printReceipt(saleId) {
   const res = await api.get(`/api/v1/pos/sales/${saleId}/receipt`)
   const r = res.data
+
+  // Try Bluetooth first
+  if (printer.pairedDevice.value) {
+    try {
+      const content = printer.buildSaleReceipt({
+        storeName: r.store_name,
+        storeAddress: r.store_address,
+        storePhone: r.store_phone,
+        transactionCode: r.transaction_code,
+        date: r.date,
+        cashier: r.cashier,
+        customerName: r.customer_name,
+        tableNumber: r.table_number,
+        items: r.items.map(i => ({ menu_name: i.name, quantity: i.qty, price_at_moment: i.subtotal / i.qty })),
+        totalAmount: r.total_amount,
+        discountAmount: r.discount_amount,
+        finalAmount: r.final_amount,
+        paymentMethod: r.payment_method,
+      })
+      await printer.sendToPrinter(content)
+      toast.success('Struk dicetak via Bluetooth!')
+      return
+    } catch (e) {
+      console.warn('Bluetooth print failed, fallback to browser:', e)
+    }
+  }
+
+  // Fallback: browser print
   const itemsHtml = r.items.map(i =>
     `<tr><td style="text-align:left">${i.qty}x ${i.name}</td><td style="text-align:right">${formatRp(i.subtotal)}</td></tr>`
   ).join('')

@@ -290,18 +290,47 @@
 
     <!-- Bluetooth Printer -->
     <div class="card p-5">
-      <h2 class="font-semibold text-gray-900 mb-4">Printer Bluetooth</h2>
-      <p class="text-xs text-gray-400 mb-4">Konfigurasi thermal printer untuk cetak struk via Bluetooth / USB</p>
-      <div class="space-y-3">
+      <div class="flex items-center justify-between mb-4">
         <div>
-          <label class="label">Nama Printer</label>
-          <input v-model="printerForm.printer_name" class="input" placeholder="Contoh: RPP02N" />
+          <h2 class="font-semibold text-gray-900">Printer Bluetooth</h2>
+          <p class="text-xs text-gray-400 mt-0.5">Hubungkan thermal printer via Bluetooth untuk cetak struk</p>
         </div>
-        <div>
-          <label class="label">Alamat Printer (MAC / IP)</label>
-          <input v-model="printerForm.printer_address" class="input font-mono text-xs" placeholder="Contoh: 00:11:22:33:44:55 atau 192.168.1.100" />
+        <span :class="printer.pairedDevice.value ? 'badge-green' : 'badge-red'">{{ printer.pairedDevice.value ? 'Connected' : 'Disconnected' }}</span>
+      </div>
+
+      <div class="space-y-4">
+        <!-- Status -->
+        <div class="bg-gray-50 rounded-xl p-4 flex items-center gap-4">
+          <div :class="['w-12 h-12 rounded-full flex items-center justify-center text-white text-lg', printer.pairedDevice.value ? 'bg-green-500' : 'bg-gray-400']">
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+          </div>
+          <div>
+            <p class="text-sm font-semibold text-gray-800">{{ printer.pairedDevice.value ? printer.pairedDevice.value.name : 'Belum Ada Printer' }}</p>
+            <p class="text-xs text-gray-400">{{ printer.printerStatus.value }}</p>
+            <p v-if="!printer.pairedDevice.value && lastPrinterName" class="text-xs text-gray-400">Terakhir: {{ lastPrinterName }}</p>
+          </div>
         </div>
-        <button @click="savePrinterSettings" class="btn-primary">Simpan Printer</button>
+
+        <!-- Guide -->
+        <div class="bg-blue-50 rounded-xl p-3 text-xs text-blue-700 space-y-1">
+          <p class="font-bold">Panduan Koneksi:</p>
+          <ul class="list-disc pl-4 space-y-0.5">
+            <li>Pastikan Bluetooth perangkat sudah aktif</li>
+            <li>Nyalakan printer thermal Bluetooth (RPP02N, MTP-2, dll)</li>
+            <li>Klik "Cari Printer" dan pilih nama printer</li>
+            <li>Gunakan "Test Print" untuk memastikan koneksi</li>
+          </ul>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex gap-2">
+          <button @click="handleConnectPrinter" class="btn-primary flex-1" :disabled="printer.isConnecting.value">
+            {{ printer.isConnecting.value ? 'Mencari...' : 'Cari Printer' }}
+          </button>
+          <button v-if="printer.pairedDevice.value" @click="handleTestPrint" class="btn-secondary flex-1" :disabled="printer.isPrinting.value">
+            {{ printer.isPrinting.value ? 'Mencetak...' : 'Test Print' }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -327,9 +356,12 @@ import { reactive, ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/composables/useApi'
 import { useToast } from 'vue-toastification'
+import { usePrinter } from '@/composables/usePrinter'
 
 const auth = useAuthStore()
 const toast = useToast()
+const printer = usePrinter()
+const lastPrinterName = ref(printer.getLastPrinterName())
 
 const currentSettings = ref(null)
 const latestInsight = ref(null)
@@ -343,7 +375,6 @@ const testingWa = ref(false)
 const pwForm = reactive({ old_password: '', new_password: '' })
 const divForm = reactive({ divisions: ['Bar', 'Kitchen', 'Titipan'], watchlist_enabled: true })
 const newDivision = ref('')
-const printerForm = reactive({ printer_name: '', printer_address: '' })
 
 const providers = [
   { value: 'openai', label: 'OpenAI' },
@@ -385,10 +416,6 @@ async function loadSettings() {
   // Divisions & Watchlist
   divForm.divisions = sRes.data.divisions || ['Bar', 'Kitchen', 'Titipan']
   divForm.watchlist_enabled = sRes.data.watchlist_enabled ?? true
-
-  // Printer
-  printerForm.printer_name = sRes.data.printer_name || ''
-  printerForm.printer_address = sRes.data.printer_address || ''
 
   // WA settings
   waForm.whatsapp_notify = sRes.data.whatsapp_notify || false
@@ -492,13 +519,22 @@ async function saveDivSettings() {
   }
 }
 
-async function savePrinterSettings() {
+async function handleConnectPrinter() {
   try {
-    await api.patch('/api/v1/settings/', { printer_name: printerForm.printer_name, printer_address: printerForm.printer_address })
-    toast.success('Printer settings disimpan!')
-    loadSettings()
+    await printer.connectPrinter()
+    lastPrinterName.value = printer.getLastPrinterName()
+    toast.success('Printer terhubung!')
   } catch (e) {
-    toast.error(e.response?.data?.detail || 'Gagal simpan')
+    toast.error('Gagal menghubungkan printer: ' + (e.message || 'Unknown'))
+  }
+}
+
+async function handleTestPrint() {
+  try {
+    await printer.testPrint()
+    toast.success('Test print terkirim!')
+  } catch (e) {
+    toast.error('Gagal test print: ' + (e.message || 'Unknown'))
   }
 }
 

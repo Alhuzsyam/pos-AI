@@ -79,9 +79,9 @@ const toast = useToast()
 const divisions = ref(['Bar', 'Kitchen'])
 const activeTab = ref('bar')
 const orders = ref([])
-const counts = ref({ bar: 0, kitchen: 0, waiter: 0 })
+const counts = ref({})
 let pollInterval = null
-let prevCounts = { bar: 0, kitchen: 0, waiter: 0 }
+let prevCounts = {}
 
 // Notification sound
 let audioCtx = null
@@ -122,8 +122,8 @@ async function loadQueue() {
     const newCounts = cRes.data
 
     // Play ting if new items appeared in current station
-    const stationKey = activeTab.value === 'bar' ? 'bar' : activeTab.value === 'kitchen' ? 'kitchen' : 'waiter'
-    if (newCounts[stationKey] > prevCounts[stationKey]) {
+    const stationKey = activeTab.value
+    if ((newCounts[stationKey] || 0) > (prevCounts[stationKey] || 0)) {
       playTing()
     }
     prevCounts = { ...newCounts }
@@ -198,9 +198,9 @@ async function loadDivisions() {
   } catch {}
 }
 
-onMounted(() => {
-  loadDivisions()
-  loadQueue()
+onMounted(async () => {
+  await loadDivisions()
+  await loadQueue()
   pollInterval = setInterval(loadQueue, 5000)
 })
 
