@@ -5,14 +5,11 @@
         <h1 class="page-title">Watchlist / KDS</h1>
         <p class="page-subtitle">Kitchen Display System - Monitor pesanan</p>
       </div>
-      <div class="flex gap-2">
-        <button @click="activeTab = 'bar'" :class="tabClass('bar')" class="relative">
-          Bar
-          <span v-if="counts.bar" class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center">{{ counts.bar }}</span>
-        </button>
-        <button @click="activeTab = 'kitchen'" :class="tabClass('kitchen')" class="relative">
-          Kitchen
-          <span v-if="counts.kitchen" class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center">{{ counts.kitchen }}</span>
+      <div class="flex gap-2 flex-wrap">
+        <button v-for="d in divisions" :key="d"
+          @click="activeTab = d.toLowerCase()" :class="tabClass(d.toLowerCase())" class="relative">
+          {{ d }}
+          <span v-if="counts[d.toLowerCase()]" class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center">{{ counts[d.toLowerCase()] }}</span>
         </button>
         <button @click="activeTab = 'waiter'" :class="tabClass('waiter')" class="relative">
           Waiter
@@ -79,6 +76,7 @@ import api from '@/composables/useApi'
 import { useToast } from 'vue-toastification'
 
 const toast = useToast()
+const divisions = ref(['Bar', 'Kitchen'])
 const activeTab = ref('bar')
 const orders = ref([])
 const counts = ref({ bar: 0, kitchen: 0, waiter: 0 })
@@ -105,12 +103,11 @@ function playTing() {
 
 const filteredOrders = computed(() => {
   if (activeTab.value === 'waiter') {
-    // Waiter sees items with status PREPARED
     return orders.value.filter(o => o.items.some(i => i.status === 'PREPARED'))
       .map(o => ({ ...o, items: o.items.filter(i => i.status === 'PREPARED') }))
   }
-  // Bar/Kitchen sees PENDING items for their division
-  const div = activeTab.value === 'bar' ? 'Bar' : 'Kitchen'
+  // Division tab — match by name (case-insensitive)
+  const div = divisions.value.find(d => d.toLowerCase() === activeTab.value) || activeTab.value
   return orders.value.filter(o => o.items.some(i => i.division === div && i.status === 'PENDING'))
     .map(o => ({ ...o, items: o.items.filter(i => i.division === div && i.status === 'PENDING') }))
 })
@@ -151,7 +148,7 @@ async function markDelivered(itemId) {
 }
 
 async function prepareAll(saleId) {
-  const div = activeTab.value === 'bar' ? 'Bar' : 'Kitchen'
+  const div = divisions.value.find(d => d.toLowerCase() === activeTab.value) || activeTab.value
   try {
     await api.put(`/api/v1/queue/order/${saleId}/prepare-all?division=${div}`)
     toast.success('Semua item selesai!')
@@ -191,9 +188,20 @@ function statusBadge(status) {
   }[status] || 'bg-gray-100 text-gray-500'
 }
 
+async function loadDivisions() {
+  try {
+    const res = await api.get('/api/v1/settings/')
+    const divs = res.data.divisions || ['Bar', 'Kitchen', 'Titipan']
+    // Filter out non-watchlist divisions if needed, keep all for now
+    divisions.value = divs
+    activeTab.value = divs[0]?.toLowerCase() || 'bar'
+  } catch {}
+}
+
 onMounted(() => {
+  loadDivisions()
   loadQueue()
-  pollInterval = setInterval(loadQueue, 5000) // Poll every 5 seconds
+  pollInterval = setInterval(loadQueue, 5000)
 })
 
 onUnmounted(() => {

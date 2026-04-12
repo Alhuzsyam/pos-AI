@@ -11,6 +11,7 @@ from typing import Optional
 from app.database import get_db
 from app.models.user import User
 from app.models.pos import Sale, SaleItem, MenuItem
+from app.models.tenant_settings import TenantSettings
 from app.core.deps import get_current_user, require_station, resolve_tenant_id
 
 router = APIRouter(prefix="/api/v1/queue", tags=["Queue / KDS"])
@@ -78,8 +79,12 @@ def queue_counts(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Jumlah item per station — untuk badge/counter."""
+    """Jumlah item per station — untuk badge/counter. Dynamic divisions."""
     tid = resolve_tenant_id(current_user, db)
+
+    # Get tenant divisions
+    settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tid).first()
+    divisions = (settings.divisions if settings and settings.divisions else ["Bar", "Kitchen", "Titipan"])
 
     base = (
         db.query(SaleItem)
@@ -88,19 +93,14 @@ def queue_counts(
         .filter(Sale.tenant_id == tid, Sale.status.in_(["COMPLETED", "PENDING"]))
     )
 
-    bar_pending = base.filter(
-        MenuItem.division == "Bar", SaleItem.status == "PENDING"
-    ).count()
-    kitchen_pending = base.filter(
-        MenuItem.division == "Kitchen", SaleItem.status == "PENDING"
-    ).count()
-    waiter_ready = base.filter(SaleItem.status == "PREPARED").count()
+    result = {}
+    for div in divisions:
+        result[div.lower()] = base.filter(
+            MenuItem.division == div, SaleItem.status == "PENDING"
+        ).count()
+    result["waiter"] = base.filter(SaleItem.status == "PREPARED").count()
 
-    return {
-        "bar": bar_pending,
-        "kitchen": kitchen_pending,
-        "waiter": waiter_ready,
-    }
+    return result
 
 
 @router.put("/{item_id}/prepare")

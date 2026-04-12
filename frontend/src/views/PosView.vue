@@ -6,8 +6,7 @@
         <input v-model="search" class="input flex-1" placeholder="Cari menu..." />
         <select v-model="filterDiv" class="input w-auto">
           <option value="">Semua</option>
-          <option value="Bar">Bar</option>
-          <option value="Kitchen">Kitchen</option>
+          <option v-for="d in divisions" :key="d" :value="d">{{ d }}</option>
         </select>
       </div>
       <div class="flex-1 overflow-y-auto p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 content-start">
@@ -18,7 +17,7 @@
           class="card p-4 text-left hover:ring-2 hover:ring-brand-400 transition-all active:scale-95"
         >
           <div class="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center mb-3">
-            <span class="text-xl">{{ item.division === 'Kitchen' ? '🍳' : '☕' }}</span>
+            <span class="text-xl">{{ divIcon(item.division) }}</span>
           </div>
           <p class="text-sm font-semibold text-gray-800 leading-tight">{{ item.name }}</p>
           <p class="text-xs text-brand-700 font-bold mt-1">{{ formatRp(item.price) }}</p>
@@ -42,10 +41,10 @@
         <div v-for="item in cart" :key="item.id" class="flex items-center gap-3">
           <div class="flex-1 min-w-0">
             <p class="text-sm font-medium text-gray-800 truncate">{{ item.name }}</p>
-            <p class="text-xs text-gray-400">{{ formatRp(item.price) }} × {{ item.qty }}</p>
+            <p class="text-xs text-gray-400">{{ formatRp(item.price) }} x {{ item.qty }}</p>
           </div>
           <div class="flex items-center gap-1">
-            <button @click="decQty(item)" class="w-6 h-6 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center text-sm hover:bg-red-50 hover:text-red-600">−</button>
+            <button @click="decQty(item)" class="w-6 h-6 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center text-sm hover:bg-red-50 hover:text-red-600">-</button>
             <span class="w-6 text-center text-sm font-bold">{{ item.qty }}</span>
             <button @click="incQty(item)" class="w-6 h-6 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center text-sm hover:bg-brand-50 hover:text-brand-700">+</button>
           </div>
@@ -58,7 +57,7 @@
         <div class="grid grid-cols-2 gap-2">
           <div>
             <label class="label">Nama Pelanggan</label>
-            <input v-model="order.customerName" class="input" placeholder="Opsional" />
+            <input v-model="order.customerName" class="input" :placeholder="order.isDebt ? 'Wajib untuk hutang' : 'Opsional'" :required="order.isDebt" />
           </div>
           <div>
             <label class="label">No Meja</label>
@@ -66,7 +65,13 @@
           </div>
         </div>
 
-        <div>
+        <!-- Phone (shown when debt mode) -->
+        <div v-if="order.isDebt">
+          <label class="label">No HP (opsional)</label>
+          <input v-model="order.phone" class="input" placeholder="08xx" />
+        </div>
+
+        <div v-if="!order.isDebt">
           <label class="label">Pembayaran</label>
           <div class="flex gap-2 flex-wrap">
             <button
@@ -97,17 +102,27 @@
           </div>
         </div>
 
-        <button
-          @click="checkout"
-          :disabled="!cart.length || loading"
-          class="btn-primary w-full justify-center py-3 text-base"
-        >
-          <svg v-if="loading" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-          </svg>
-          Bayar {{ cart.length ? formatRp(subtotal - order.discount) : '' }}
-        </button>
+        <!-- Two buttons: Bayar + Utang -->
+        <div class="flex gap-2">
+          <button
+            @click="order.isDebt = false; checkout()"
+            :disabled="!cart.length || loading"
+            class="btn-primary flex-1 justify-center py-3"
+          >
+            <svg v-if="loading && !order.isDebt" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+            Bayar
+          </button>
+          <button
+            @click="order.isDebt = true; checkout()"
+            :disabled="!cart.length || loading"
+            class="flex-1 justify-center py-3 rounded-lg font-semibold text-sm border-2 border-red-400 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+          >
+            Hutang
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -124,8 +139,9 @@ const cart = ref([])
 const search = ref('')
 const filterDiv = ref('')
 const loading = ref(false)
+const divisions = ref(['Bar', 'Kitchen', 'Titipan'])
 
-const order = reactive({ customerName: '', tableNumber: '', paymentMethod: 'CASH', discount: 0 })
+const order = reactive({ customerName: '', tableNumber: '', paymentMethod: 'CASH', discount: 0, isDebt: false, phone: '' })
 
 const filteredMenu = computed(() =>
   menu.value.filter(m =>
@@ -138,6 +154,11 @@ const subtotal = computed(() => cart.value.reduce((s, i) => s + i.price * i.qty,
 
 const formatRp = (n) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n)
+
+function divIcon(div) {
+  const icons = { Kitchen: '🍳', Bar: '☕', Titipan: '📦' }
+  return icons[div] || '🍽️'
+}
 
 function addToCart(item) {
   const existing = cart.value.find(c => c.id === item.id)
@@ -153,6 +174,10 @@ function decQty(item) {
 
 async function checkout() {
   if (!cart.value.length) return
+  if (order.isDebt && !order.customerName) {
+    toast.error('Nama pelanggan wajib untuk hutang')
+    return
+  }
   loading.value = true
   try {
     const items = cart.value.map(i => ({
@@ -167,16 +192,20 @@ async function checkout() {
       table_number: order.tableNumber || null,
       payment_method: order.paymentMethod,
       discount_amount: order.discount,
+      is_debt: order.isDebt,
+      phone: order.phone || null,
     })
-    toast.success('Transaksi berhasil!')
-    // Auto-print receipt
-    if (res.data?.id) {
+    toast.success(order.isDebt ? 'Hutang tercatat! Item masuk watchlist.' : 'Transaksi berhasil!')
+    // Auto-print receipt (only for non-debt)
+    if (!order.isDebt && res.data?.id) {
       try { await printReceipt(res.data.id) } catch {}
     }
     cart.value = []
     order.customerName = ''
     order.tableNumber = ''
     order.discount = 0
+    order.isDebt = false
+    order.phone = ''
   } catch (e) {
     toast.error(e.response?.data?.detail || 'Gagal proses transaksi')
   } finally {
@@ -220,8 +249,18 @@ async function printReceipt(saleId) {
   setTimeout(() => pw.print(), 300)
 }
 
+async function loadDivisions() {
+  try {
+    const res = await api.get('/api/v1/settings/')
+    divisions.value = res.data.divisions || ['Bar', 'Kitchen', 'Titipan']
+  } catch {}
+}
+
 onMounted(async () => {
-  const res = await api.get('/api/v1/pos/menu?available_only=true')
-  menu.value = res.data
+  const [menuRes] = await Promise.all([
+    api.get('/api/v1/pos/menu?available_only=true'),
+    loadDivisions(),
+  ])
+  menu.value = menuRes.data
 })
 </script>

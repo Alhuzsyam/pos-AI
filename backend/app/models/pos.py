@@ -99,6 +99,7 @@ class Debt(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    sale_id = Column(Integer, ForeignKey("sales.id"), nullable=True)  # linked sale for watchlist
 
     customer_name = Column(String(100), nullable=False)
     phone = Column(String(20), nullable=True)
@@ -107,10 +108,12 @@ class Debt(Base):
     is_paid = Column(Boolean, default=False)
     due_date = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
+    payment_method = Column(String(20), nullable=True)  # method used when paying off
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     paid_at = Column(DateTime, nullable=True)
 
+    sale = relationship("Sale", foreign_keys=[sale_id])
     items = relationship("DebtItem", back_populates="debt", cascade="all, delete-orphan")
 
 
@@ -133,6 +136,7 @@ class Reservation(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    sale_id = Column(Integer, ForeignKey("sales.id"), nullable=True)  # linked sale when served
 
     customer_name = Column(String(100), nullable=False)
     phone = Column(String(20), nullable=True)
@@ -142,11 +146,14 @@ class Reservation(Base):
     total_amount = Column(Float, default=0.0)
     dp_amount = Column(Float, default=0.0)
     dp_method = Column(String(20), default="CASH")
-    status = Column(String(20), default="PENDING")  # PENDING | CONFIRMED | COMPLETED | CANCELLED
+    settlement_amount = Column(Float, default=0.0)       # pelunasan saat hari H
+    settlement_method = Column(String(20), nullable=True)  # CASH | QRIS
+    status = Column(String(20), default="PENDING")  # PENDING | CONFIRMED | SERVING | COMPLETED | CANCELLED
     notes = Column(Text, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    sale = relationship("Sale", foreign_keys=[sale_id])
     tenant = relationship("Tenant", back_populates="reservations")
     items = relationship("ReservationItem", back_populates="reservation", cascade="all, delete-orphan")
 

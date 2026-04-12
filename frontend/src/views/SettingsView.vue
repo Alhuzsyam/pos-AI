@@ -255,6 +255,56 @@
       </div>
     </div>
 
+    <!-- Divisions & Watchlist -->
+    <div class="card p-5">
+      <h2 class="font-semibold text-gray-900 mb-4">Divisi & Watchlist</h2>
+      <div class="space-y-4">
+        <div>
+          <label class="label">Divisi Menu</label>
+          <p class="text-xs text-gray-400 mb-2">Divisi yang muncul di POS, Menu, dan Watchlist/KDS</p>
+          <div class="flex flex-wrap gap-2 mb-2">
+            <span v-for="(d, i) in divForm.divisions" :key="i"
+              class="inline-flex items-center gap-1 bg-brand-50 text-brand-700 px-3 py-1 rounded-full text-sm font-medium">
+              {{ d }}
+              <button type="button" @click="divForm.divisions.splice(i, 1)" class="text-brand-400 hover:text-red-600 ml-1">✕</button>
+            </span>
+          </div>
+          <div class="flex gap-2">
+            <input v-model="newDivision" class="input flex-1" placeholder="Nama divisi baru" @keydown.enter.prevent="addDivision" />
+            <button type="button" @click="addDivision" class="btn-secondary btn-sm">Tambah</button>
+          </div>
+        </div>
+        <div class="flex items-center justify-between pt-2 border-t">
+          <div>
+            <p class="text-sm font-medium text-gray-800">Watchlist / KDS</p>
+            <p class="text-xs text-gray-400">Aktifkan Kitchen Display System untuk monitor pesanan</p>
+          </div>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" v-model="divForm.watchlist_enabled" class="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+            <span class="text-sm font-medium" :class="divForm.watchlist_enabled ? 'text-green-600' : 'text-gray-400'">{{ divForm.watchlist_enabled ? 'Aktif' : 'Nonaktif' }}</span>
+          </label>
+        </div>
+        <button @click="saveDivSettings" class="btn-primary">Simpan Divisi & Watchlist</button>
+      </div>
+    </div>
+
+    <!-- Bluetooth Printer -->
+    <div class="card p-5">
+      <h2 class="font-semibold text-gray-900 mb-4">Printer Bluetooth</h2>
+      <p class="text-xs text-gray-400 mb-4">Konfigurasi thermal printer untuk cetak struk via Bluetooth / USB</p>
+      <div class="space-y-3">
+        <div>
+          <label class="label">Nama Printer</label>
+          <input v-model="printerForm.printer_name" class="input" placeholder="Contoh: RPP02N" />
+        </div>
+        <div>
+          <label class="label">Alamat Printer (MAC / IP)</label>
+          <input v-model="printerForm.printer_address" class="input font-mono text-xs" placeholder="Contoh: 00:11:22:33:44:55 atau 192.168.1.100" />
+        </div>
+        <button @click="savePrinterSettings" class="btn-primary">Simpan Printer</button>
+      </div>
+    </div>
+
     <!-- Change Password -->
     <div class="card p-5">
       <h2 class="font-semibold text-gray-900 mb-4">Ganti Password</h2>
@@ -291,6 +341,9 @@ const bizForm = reactive({ business_type: 'cafe', business_description: '', targ
 const waForm = reactive({ whatsapp_notify: false, waha_url: 'http://localhost:3000', waha_api_key: '', waha_session: 'default', whatsapp_group_id: '', whatsapp_schedule_hour: 21, whatsapp_schedule_minute: 30 })
 const testingWa = ref(false)
 const pwForm = reactive({ old_password: '', new_password: '' })
+const divForm = reactive({ divisions: ['Bar', 'Kitchen', 'Titipan'], watchlist_enabled: true })
+const newDivision = ref('')
+const printerForm = reactive({ printer_name: '', printer_address: '' })
 
 const providers = [
   { value: 'openai', label: 'OpenAI' },
@@ -328,6 +381,14 @@ async function loadSettings() {
   bizForm.business_type = sRes.data.business_type || 'cafe'
   bizForm.business_description = sRes.data.business_description || ''
   bizForm.target_daily_revenue = sRes.data.target_daily_revenue || 0
+
+  // Divisions & Watchlist
+  divForm.divisions = sRes.data.divisions || ['Bar', 'Kitchen', 'Titipan']
+  divForm.watchlist_enabled = sRes.data.watchlist_enabled ?? true
+
+  // Printer
+  printerForm.printer_name = sRes.data.printer_name || ''
+  printerForm.printer_address = sRes.data.printer_address || ''
 
   // WA settings
   waForm.whatsapp_notify = sRes.data.whatsapp_notify || false
@@ -410,6 +471,34 @@ async function generateInsight() {
   } catch (e) {
     toast.error(e.response?.data?.detail || 'Gagal generate insight')
     generating.value = false
+  }
+}
+
+function addDivision() {
+  const d = newDivision.value.trim()
+  if (!d) return
+  if (divForm.divisions.includes(d)) { toast.error('Divisi sudah ada'); return }
+  divForm.divisions.push(d)
+  newDivision.value = ''
+}
+
+async function saveDivSettings() {
+  try {
+    await api.patch('/api/v1/settings/', { divisions: divForm.divisions, watchlist_enabled: divForm.watchlist_enabled })
+    toast.success('Divisi & Watchlist disimpan!')
+    loadSettings()
+  } catch (e) {
+    toast.error(e.response?.data?.detail || 'Gagal simpan')
+  }
+}
+
+async function savePrinterSettings() {
+  try {
+    await api.patch('/api/v1/settings/', { printer_name: printerForm.printer_name, printer_address: printerForm.printer_address })
+    toast.success('Printer settings disimpan!')
+    loadSettings()
+  } catch (e) {
+    toast.error(e.response?.data?.detail || 'Gagal simpan')
   }
 }
 

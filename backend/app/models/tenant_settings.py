@@ -33,6 +33,16 @@ class TenantSettings(Base):
     business_description = Column(Text, nullable=True)
     target_daily_revenue = Column(Integer, default=0)       # target omzet per hari (Rp)
 
+    # Divisions (dynamic - custom per tenant)
+    divisions = Column(JSON, default=lambda: ["Bar", "Kitchen", "Titipan"])
+
+    # Watchlist / KDS mode
+    watchlist_enabled = Column(Boolean, default=True)
+
+    # Printer settings (Bluetooth thermal)
+    printer_name = Column(String(100), nullable=True)
+    printer_address = Column(String(100), nullable=True)   # MAC address or IP
+
     # Notification / WhatsApp (WAHA)
     whatsapp_notify = Column(Boolean, default=False)
     whatsapp_number = Column(String(30), nullable=True)     # nomor untuk kirim weekly report

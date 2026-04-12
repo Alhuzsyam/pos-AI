@@ -177,11 +177,36 @@ class SaleCreate(BaseModel):
     payment_method: str = "CASH"
     discount_amount: float = 0.0
     notes: Optional[str] = None
+    is_debt: bool = False          # True = hutang, don't pay now
+    phone: Optional[str] = None    # for debt customer phone
 
 
 def _generate_transaction_code(tenant_id: int) -> str:
     ts = datetime.now().strftime("%Y%m%d%H%M%S")
     return f"TRX-{tenant_id}-{ts}"
+
+
+def _deduct_stock(menu_item_id: int, quantity: int, tenant_id: int, username: str, db: Session):
+    """Kurangi stok bahan baku via resep menu item."""
+    recipes = db.query(Recipe).filter(Recipe.menu_item_id == menu_item_id).all()
+    for recipe in recipes:
+        product = db.query(Product).filter(
+            Product.id == recipe.product_id,
+            Product.tenant_id == tenant_id,
+        ).first()
+        if product:
+            deduct = recipe.amount_needed * quantity
+            product.current_stock = max(0, product.current_stock - int(deduct))
+            db.add(StockMovement(
+                id=str(uuid.uuid4()),
+                tenant_id=tenant_id,
+                product_id=product.id,
+                qty_change=-int(deduct),
+                balance_after=product.current_stock,
+                transaction_type="OUT",
+                source="POS",
+                created_by=username,
+            ))
 
 
 @router.get("/sales")
@@ -217,6 +242,9 @@ def create_sale(
     tax = total * 0.0   # bisa dikonfigurasi per-tenant nanti
     final = total - body.discount_amount + tax
 
+    payment = "DEBT" if body.is_debt else body.payment_method
+    status = "PENDING" if body.is_debt else "COMPLETED"
+
     sale = Sale(
         tenant_id=tid,
         transaction_code=_generate_transaction_code(tid),
@@ -226,7 +254,8 @@ def create_sale(
         final_amount=final,
         customer_name=body.customer_name,
         table_number=body.table_number,
-        payment_method=body.payment_method,
+        payment_method=payment,
+        status=status,
         notes=body.notes,
         cashier_id=current_user.id,
     )
@@ -247,25 +276,30 @@ def create_sale(
 
         # Kurangi stok bahan baku via resep
         if item_in.menu_item_id:
-            recipes = db.query(Recipe).filter(Recipe.menu_item_id == item_in.menu_item_id).all()
-            for recipe in recipes:
-                product = db.query(Product).filter(
-                    Product.id == recipe.product_id,
-                    Product.tenant_id == tid,
-                ).first()
-                if product:
-                    deduct = recipe.amount_needed * item_in.quantity
-                    product.current_stock = max(0, product.current_stock - int(deduct))
-                    db.add(StockMovement(
-                        id=str(uuid.uuid4()),
-                        tenant_id=tid,
-                        product_id=product.id,
-                        qty_change=-int(deduct),
-                        balance_after=product.current_stock,
-                        transaction_type="OUT",
-                        source="POS",
-                        created_by=current_user.username,
-                    ))
+            _deduct_stock(item_in.menu_item_id, item_in.quantity, tid, current_user.username, db)
+
+    # If debt, auto-create Debt record
+    if body.is_debt:
+        if not body.customer_name:
+            raise HTTPException(400, "Nama pelanggan wajib untuk hutang")
+        debt = Debt(
+            tenant_id=tid,
+            sale_id=sale.id,
+            customer_name=body.customer_name,
+            phone=body.phone,
+            total_amount=final,
+            notes=body.notes,
+        )
+        db.add(debt)
+        db.flush()
+        for item_in in body.items:
+            db.add(DebtItem(
+                debt_id=debt.id,
+                menu_item_id=item_in.menu_item_id,
+                menu_name=item_in.menu_name,
+                quantity=item_in.quantity,
+                price_at_moment=item_in.price_at_moment,
+            ))
 
     db.commit()
     db.refresh(sale)
@@ -423,9 +457,19 @@ class DebtItemIn(BaseModel):
 class DebtCreate(BaseModel):
     customer_name: str
     phone: Optional[str] = None
+    table_number: Optional[str] = None
     items: List[DebtItemIn]
     due_date: Optional[date] = None
     notes: Optional[str] = None
+    discount_amount: float = 0.0
+
+
+class DebtPayBody(BaseModel):
+    payment_method: str = "CASH"   # CASH | QRIS | TRANSFER
+
+
+class DebtAddItems(BaseModel):
+    items: List[DebtItemIn]
 
 
 @router.get("/debts")
@@ -449,13 +493,56 @@ def create_debt(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_kasir),
 ):
+    """
+    Create debt + linked Sale with SaleItems (items masuk watchlist).
+    Stok auto deduct via resep.
+    """
+    if not body.items:
+        raise HTTPException(400, "Minimal 1 item")
+
     tid = resolve_tenant_id(current_user, db)
     total = sum(i.quantity * i.price_at_moment for i in body.items)
+    final = total - body.discount_amount
+
+    # Create Sale (payment_method=DEBT, status=PENDING until paid)
+    sale = Sale(
+        tenant_id=tid,
+        transaction_code=_generate_transaction_code(tid),
+        total_amount=total,
+        discount_amount=body.discount_amount,
+        tax_amount=0.0,
+        final_amount=final,
+        customer_name=body.customer_name,
+        table_number=body.table_number,
+        payment_method="DEBT",
+        status="PENDING",
+        notes=body.notes,
+        cashier_id=current_user.id,
+    )
+    db.add(sale)
+    db.flush()
+
+    # Create SaleItems (go to watchlist as PENDING)
+    for item_in in body.items:
+        db.add(SaleItem(
+            sale_id=sale.id,
+            menu_item_id=item_in.menu_item_id,
+            menu_name=item_in.menu_name,
+            quantity=item_in.quantity,
+            price_at_moment=item_in.price_at_moment,
+            subtotal=item_in.quantity * item_in.price_at_moment,
+        ))
+        # Deduct stock via recipe
+        if item_in.menu_item_id:
+            _deduct_stock(item_in.menu_item_id, item_in.quantity, tid, current_user.username, db)
+
+    # Create Debt record
     debt = Debt(
         tenant_id=tid,
+        sale_id=sale.id,
         customer_name=body.customer_name,
         phone=body.phone,
-        total_amount=total,
+        total_amount=final,
         due_date=body.due_date,
         notes=body.notes,
     )
@@ -476,12 +563,71 @@ def create_debt(
     return debt
 
 
-@router.patch("/debts/{debt_id}/pay")
-def pay_debt(
+@router.post("/debts/{debt_id}/add-items", status_code=201)
+def add_debt_items(
     debt_id: int,
+    body: DebtAddItems,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_kasir),
 ):
+    """Tambah item ke hutang yang sudah ada. Only new items go to watchlist."""
+    if not body.items:
+        raise HTTPException(400, "Minimal 1 item")
+
+    tid = resolve_tenant_id(current_user, db)
+    debt = db.query(Debt).filter(Debt.id == debt_id, Debt.tenant_id == tid, Debt.is_paid == False).first()
+    if not debt:
+        raise HTTPException(404, "Hutang tidak ditemukan atau sudah lunas")
+
+    added_total = sum(i.quantity * i.price_at_moment for i in body.items)
+
+    # Add new SaleItems to linked sale (only new items to watchlist)
+    if debt.sale_id:
+        for item_in in body.items:
+            db.add(SaleItem(
+                sale_id=debt.sale_id,
+                menu_item_id=item_in.menu_item_id,
+                menu_name=item_in.menu_name,
+                quantity=item_in.quantity,
+                price_at_moment=item_in.price_at_moment,
+                subtotal=item_in.quantity * item_in.price_at_moment,
+            ))
+            if item_in.menu_item_id:
+                _deduct_stock(item_in.menu_item_id, item_in.quantity, tid, current_user.username, db)
+
+        # Update sale totals
+        sale = db.query(Sale).filter(Sale.id == debt.sale_id).first()
+        if sale:
+            sale.total_amount += added_total
+            sale.final_amount += added_total
+
+    # Add DebtItems
+    for item_in in body.items:
+        db.add(DebtItem(
+            debt_id=debt.id,
+            menu_item_id=item_in.menu_item_id,
+            menu_name=item_in.menu_name,
+            quantity=item_in.quantity,
+            price_at_moment=item_in.price_at_moment,
+        ))
+
+    debt.total_amount += added_total
+    db.commit()
+    db.refresh(debt)
+    return debt
+
+
+@router.patch("/debts/{debt_id}/pay")
+def pay_debt(
+    debt_id: int,
+    body: DebtPayBody,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_kasir),
+):
+    """
+    Lunasi hutang — creates revenue entry on payment date.
+    Updates linked Sale to COMPLETED + payment_method.
+    """
     tid = resolve_tenant_id(current_user, db)
     debt = db.query(Debt).filter(
         Debt.id == debt_id,
@@ -489,12 +635,25 @@ def pay_debt(
     ).first()
     if not debt:
         raise HTTPException(status_code=404, detail="Hutang tidak ditemukan")
+    if debt.is_paid:
+        raise HTTPException(400, "Hutang sudah lunas")
 
+    now = datetime.now()
     debt.is_paid = True
     debt.paid_amount = debt.total_amount
-    debt.paid_at = datetime.now()
+    debt.paid_at = now
+    debt.payment_method = body.payment_method
+
+    # Update linked sale — mark completed + update date to NOW (revenue hits today)
+    if debt.sale_id:
+        sale = db.query(Sale).filter(Sale.id == debt.sale_id).first()
+        if sale:
+            sale.status = "COMPLETED"
+            sale.payment_method = body.payment_method
+            sale.transaction_date = now  # revenue masuk di tgl bayar
+
     db.commit()
-    return {"message": "Hutang sudah dilunasi", "debt_id": debt_id}
+    return {"message": f"Hutang dilunasi via {body.payment_method}", "debt_id": debt_id}
 
 
 # ==================== RESERVATIONS ====================
@@ -580,14 +739,14 @@ def update_reservation_status(
     current_user: User = Depends(require_kasir),
 ):
     tid = resolve_tenant_id(current_user, db)
-    res = db.query(Reservation).filter(
+    res = db.query(Reservation).options(joinedload(Reservation.items)).filter(
         Reservation.id == res_id,
         Reservation.tenant_id == tid,
     ).first()
     if not res:
         raise HTTPException(status_code=404, detail="Reservasi tidak ditemukan")
 
-    valid_statuses = ["PENDING", "CONFIRMED", "COMPLETED", "CANCELLED"]
+    valid_statuses = ["PENDING", "CONFIRMED", "SERVING", "COMPLETED", "CANCELLED"]
     new_status = body.get("status")
     if new_status not in valid_statuses:
         raise HTTPException(status_code=400, detail=f"Status tidak valid: {valid_statuses}")
@@ -595,3 +754,101 @@ def update_reservation_status(
     res.status = new_status
     db.commit()
     return {"message": f"Status diupdate ke {new_status}"}
+
+
+class ReservationServeBody(BaseModel):
+    settlement_method: str = "CASH"  # CASH | QRIS
+
+
+@router.post("/reservations/{res_id}/serve")
+def serve_reservation(
+    res_id: int,
+    body: ReservationServeBody,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_kasir),
+):
+    """
+    Hari H — sajikan reservasi:
+    1. Creates Sale + SaleItems (masuk watchlist as PENDING)
+    2. Deducts stock
+    3. Records settlement (pelunasan = total - dp)
+    4. Both DP + pelunasan masuk laporan
+    """
+    tid = resolve_tenant_id(current_user, db)
+    res = db.query(Reservation).options(joinedload(Reservation.items)).filter(
+        Reservation.id == res_id,
+        Reservation.tenant_id == tid,
+    ).first()
+    if not res:
+        raise HTTPException(404, "Reservasi tidak ditemukan")
+    if res.status not in ("CONFIRMED", "PENDING"):
+        raise HTTPException(400, f"Reservasi status {res.status}, harus CONFIRMED/PENDING")
+    if not res.items:
+        raise HTTPException(400, "Reservasi belum punya item menu")
+
+    total = sum(i.quantity * i.price_at_moment for i in res.items)
+    settlement = total - res.dp_amount
+
+    # Create Sale for the reservation
+    sale = Sale(
+        tenant_id=tid,
+        transaction_code=_generate_transaction_code(tid),
+        total_amount=total,
+        discount_amount=0.0,
+        tax_amount=0.0,
+        final_amount=total,
+        customer_name=res.customer_name,
+        table_number=res.table_number,
+        payment_method=body.settlement_method,
+        status="COMPLETED",
+        notes=f"Reservasi #{res.id} - DP: {res.dp_amount} ({res.dp_method}), Pelunasan: {settlement} ({body.settlement_method})",
+        cashier_id=current_user.id,
+    )
+    db.add(sale)
+    db.flush()
+
+    # Create SaleItems (go to watchlist)
+    for item in res.items:
+        db.add(SaleItem(
+            sale_id=sale.id,
+            menu_item_id=item.menu_item_id,
+            menu_name=item.menu_name,
+            quantity=item.quantity,
+            price_at_moment=item.price_at_moment,
+            subtotal=item.quantity * item.price_at_moment,
+            note=item.note,
+        ))
+        if item.menu_item_id:
+            _deduct_stock(item.menu_item_id, item.quantity, tid, current_user.username, db)
+
+    # Update reservation
+    res.sale_id = sale.id
+    res.settlement_amount = settlement
+    res.settlement_method = body.settlement_method
+    res.status = "SERVING"
+    res.total_amount = total
+
+    db.commit()
+    return {
+        "message": "Reservasi disajikan! Item masuk watchlist.",
+        "sale_id": sale.id,
+        "settlement": settlement,
+    }
+
+
+@router.patch("/reservations/{res_id}/complete")
+def complete_reservation(
+    res_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_kasir),
+):
+    """Mark reservation as completed after serving."""
+    tid = resolve_tenant_id(current_user, db)
+    res = db.query(Reservation).filter(
+        Reservation.id == res_id, Reservation.tenant_id == tid,
+    ).first()
+    if not res:
+        raise HTTPException(404, "Reservasi tidak ditemukan")
+    res.status = "COMPLETED"
+    db.commit()
+    return {"message": "Reservasi selesai"}

@@ -12,7 +12,7 @@
       <div v-for="item in menu" :key="item.id" class="card p-5">
         <div class="flex items-center justify-between mb-3">
           <div class="w-10 h-10 bg-brand-50 border border-brand-100 rounded-lg flex items-center justify-center text-[18px]">
-            {{ item.division === 'Kitchen' ? '🍳' : '☕' }}
+            {{ divIcon(item.division) }}
           </div>
           <span :class="item.is_available ? 'badge-green' : 'badge-red'">{{ item.is_available ? 'Aktif' : 'Nonaktif' }}</span>
         </div>
@@ -52,7 +52,7 @@
             <div>
               <label class="label">Divisi</label>
               <select v-model="form.division" class="input">
-                <option>Bar</option><option>Kitchen</option>
+                <option v-for="d in divisions" :key="d" :value="d">{{ d }}</option>
               </select>
             </div>
             <div><label class="label">Kategori</label><input v-model="form.category" class="input" placeholder="Minuman, Makanan" /></div>
@@ -100,11 +100,17 @@ import { useToast } from 'vue-toastification'
 const toast = useToast()
 const menu = ref([])
 const products = ref([])
+const divisions = ref(['Bar', 'Kitchen', 'Titipan'])
 const showModal = ref(false)
 const editItem = ref(null)
 const form = reactive({ name: '', price: 0, division: 'Bar', category: '', description: '', recipes: [] })
 
 const formatRp = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n)
+
+function divIcon(div) {
+  const icons = { Kitchen: '🍳', Bar: '☕', Titipan: '📦' }
+  return icons[div] || '🍽️'
+}
 
 async function loadMenu() {
   const res = await api.get('/api/v1/pos/menu?available_only=false')
@@ -169,5 +175,12 @@ async function toggleAvail(item) {
   loadMenu()
 }
 
-onMounted(() => { loadMenu(); loadProducts() })
+async function loadDivisions() {
+  try {
+    const res = await api.get('/api/v1/settings/')
+    divisions.value = res.data.divisions || ['Bar', 'Kitchen', 'Titipan']
+  } catch {}
+}
+
+onMounted(() => { loadMenu(); loadProducts(); loadDivisions() })
 </script>
