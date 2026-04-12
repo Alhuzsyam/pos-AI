@@ -40,6 +40,8 @@
         <NavItem to="/debts" icon="book" :label="collapsed ? '' : 'Buku Hutang'" />
         <NavItem to="/reservations" icon="calendar" :label="collapsed ? '' : 'Reservasi'" />
 
+        <NavItem to="/watchlist" icon="clipboard-list" :label="collapsed ? '' : 'Watchlist / KDS'" />
+
         <NavGroup v-if="!collapsed" label="Produk & Stok" />
         <NavItem to="/inventory" icon="cube" :label="collapsed ? '' : 'Inventori'" v-if="auth.can('inventory')" />
         <NavItem to="/menu" icon="menu-alt" :label="collapsed ? '' : 'Kelola Menu'" v-if="auth.can('manager')" />
@@ -122,6 +124,7 @@
             <NavItem to="/expenses" icon="wallet" label="Pengeluaran" v-if="auth.can('kasir')" />
             <NavItem to="/debts" icon="book" label="Buku Hutang" />
             <NavItem to="/reservations" icon="calendar" label="Reservasi" />
+            <NavItem to="/watchlist" icon="clipboard-list" label="Watchlist / KDS" />
             <NavItem to="/inventory" icon="cube" label="Inventori" v-if="auth.can('inventory')" />
             <NavItem to="/menu" icon="menu-alt" label="Kelola Menu" v-if="auth.can('manager')" />
             <NavItem to="/reports" icon="chart-bar" label="Laporan" v-if="auth.can('manager')" />

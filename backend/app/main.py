@@ -8,7 +8,7 @@ from app import models  # noqa: F401 - trigger model registration
 
 # Import all routers. `settings` module is aliased to avoid collision with the
 # Pydantic settings object instantiated below.
-from app.routers import auth, tenants, users, inventory, pos, reports, ai
+from app.routers import auth, tenants, users, inventory, pos, reports, ai, queue
 from app.routers import settings as settings_router
 
 settings = get_settings()
@@ -18,7 +18,14 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     # Buat semua tabel kalau belum ada
     Base.metadata.create_all(bind=engine)
+
+    # Start WhatsApp scheduler
+    from app.services.scheduler import start_scheduler, stop_scheduler
+    start_scheduler()
+
     yield
+
+    stop_scheduler()
 
 
 app = FastAPI(
@@ -69,6 +76,7 @@ app.include_router(inventory.router)
 app.include_router(pos.router)
 app.include_router(reports.router)
 app.include_router(ai.router)
+app.include_router(queue.router)
 app.include_router(settings_router.router)
 
 

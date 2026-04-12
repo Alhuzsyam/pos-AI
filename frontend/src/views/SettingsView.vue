@@ -178,6 +178,62 @@
       </div>
     </div>
 
+    <!-- WhatsApp Notification Settings -->
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="font-semibold text-gray-900">Notifikasi WhatsApp</h2>
+          <p class="text-xs text-gray-400 mt-0.5">Kirim laporan harian & alert stok rendah via WhatsApp (WAHA API)</p>
+        </div>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" v-model="waForm.whatsapp_notify" class="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+          <span class="text-sm font-medium" :class="waForm.whatsapp_notify ? 'text-green-600' : 'text-gray-400'">{{ waForm.whatsapp_notify ? 'Aktif' : 'Nonaktif' }}</span>
+        </label>
+      </div>
+
+      <div class="space-y-3" :class="{ 'opacity-50 pointer-events-none': !waForm.whatsapp_notify }">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label">WAHA URL</label>
+            <input v-model="waForm.waha_url" class="input text-xs" placeholder="http://localhost:3000" />
+          </div>
+          <div>
+            <label class="label">WAHA Session</label>
+            <input v-model="waForm.waha_session" class="input text-xs" placeholder="default" />
+          </div>
+        </div>
+        <div>
+          <label class="label">WAHA API Key</label>
+          <input v-model="waForm.waha_api_key" class="input font-mono text-xs" :placeholder="currentSettings?.has_waha_key ? '••••••••••••' : 'API key WAHA'" />
+        </div>
+        <div>
+          <label class="label">WhatsApp Group ID</label>
+          <input v-model="waForm.whatsapp_group_id" class="input font-mono text-xs" placeholder="120363xxxxx@g.us" />
+          <p class="text-[10px] text-gray-400 mt-1">ID group WA tujuan notifikasi. Bisa didapat dari WAHA API.</p>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label">Jam Kirim</label>
+            <select v-model.number="waForm.whatsapp_schedule_hour" class="input">
+              <option v-for="h in 24" :key="h-1" :value="h-1">{{ String(h-1).padStart(2,'0') }}:00</option>
+            </select>
+          </div>
+          <div>
+            <label class="label">Menit</label>
+            <select v-model.number="waForm.whatsapp_schedule_minute" class="input">
+              <option v-for="m in [0,15,30,45]" :key="m" :value="m">:{{ String(m).padStart(2,'0') }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button @click="saveWaSettings" class="btn-primary">Simpan WA Settings</button>
+          <button @click="testWhatsapp" class="btn-secondary" :disabled="testingWa">
+            {{ testingWa ? 'Mengirim...' : 'Test Kirim' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- API Integration -->
     <div class="card p-5">
       <h2 class="font-semibold text-gray-900 mb-3">Integrasi Agentic AI</h2>
@@ -232,6 +288,8 @@ const generating = ref(false)
 
 const aiForm = reactive({ ai_provider: 'openai', openai_api_key: '', gemini_api_key: '', groq_api_key: '', ollama_host: '', ai_model: 'gpt-4o-mini' })
 const bizForm = reactive({ business_type: 'cafe', business_description: '', target_daily_revenue: 0 })
+const waForm = reactive({ whatsapp_notify: false, waha_url: 'http://localhost:3000', waha_api_key: '', waha_session: 'default', whatsapp_group_id: '', whatsapp_schedule_hour: 21, whatsapp_schedule_minute: 30 })
+const testingWa = ref(false)
 const pwForm = reactive({ old_password: '', new_password: '' })
 
 const providers = [
@@ -270,6 +328,14 @@ async function loadSettings() {
   bizForm.business_type = sRes.data.business_type || 'cafe'
   bizForm.business_description = sRes.data.business_description || ''
   bizForm.target_daily_revenue = sRes.data.target_daily_revenue || 0
+
+  // WA settings
+  waForm.whatsapp_notify = sRes.data.whatsapp_notify || false
+  waForm.waha_url = sRes.data.waha_url || 'http://localhost:3000'
+  waForm.waha_session = sRes.data.waha_session || 'default'
+  waForm.whatsapp_group_id = sRes.data.whatsapp_group_id || ''
+  waForm.whatsapp_schedule_hour = sRes.data.whatsapp_schedule_hour ?? 21
+  waForm.whatsapp_schedule_minute = sRes.data.whatsapp_schedule_minute ?? 30
 }
 
 async function saveAiSettings() {
@@ -291,6 +357,38 @@ async function saveAiSettings() {
     toast.error(e.response?.data?.detail || 'Gagal simpan')
   } finally {
     savingAi.value = false
+  }
+}
+
+async function saveWaSettings() {
+  try {
+    const payload = {
+      whatsapp_notify: waForm.whatsapp_notify,
+      waha_url: waForm.waha_url,
+      waha_session: waForm.waha_session,
+      whatsapp_group_id: waForm.whatsapp_group_id,
+      whatsapp_schedule_hour: waForm.whatsapp_schedule_hour,
+      whatsapp_schedule_minute: waForm.whatsapp_schedule_minute,
+    }
+    if (waForm.waha_api_key) payload.waha_api_key = waForm.waha_api_key
+    await api.patch('/api/v1/settings/', payload)
+    toast.success('WhatsApp settings disimpan!')
+    waForm.waha_api_key = ''
+    loadSettings()
+  } catch (e) {
+    toast.error(e.response?.data?.detail || 'Gagal simpan')
+  }
+}
+
+async function testWhatsapp() {
+  testingWa.value = true
+  try {
+    await api.post('/api/v1/settings/whatsapp/test')
+    toast.success('Pesan test terkirim! Cek group WA.')
+  } catch (e) {
+    toast.error(e.response?.data?.detail || 'Gagal kirim test')
+  } finally {
+    testingWa.value = false
   }
 }
 

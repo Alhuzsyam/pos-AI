@@ -161,7 +161,7 @@ async function checkout() {
       quantity: i.qty,
       price_at_moment: i.price,
     }))
-    await api.post('/api/v1/pos/sales', {
+    const res = await api.post('/api/v1/pos/sales', {
       items,
       customer_name: order.customerName || null,
       table_number: order.tableNumber || null,
@@ -169,6 +169,10 @@ async function checkout() {
       discount_amount: order.discount,
     })
     toast.success('Transaksi berhasil!')
+    // Auto-print receipt
+    if (res.data?.id) {
+      try { await printReceipt(res.data.id) } catch {}
+    }
     cart.value = []
     order.customerName = ''
     order.tableNumber = ''
@@ -178,6 +182,42 @@ async function checkout() {
   } finally {
     loading.value = false
   }
+}
+
+async function printReceipt(saleId) {
+  const res = await api.get(`/api/v1/pos/sales/${saleId}/receipt`)
+  const r = res.data
+  const itemsHtml = r.items.map(i =>
+    `<tr><td style="text-align:left">${i.qty}x ${i.name}</td><td style="text-align:right">${formatRp(i.subtotal)}</td></tr>`
+  ).join('')
+  const html = `
+    <div style="font-family:'Courier New',monospace;width:280px;padding:10px;font-size:12px;color:#000">
+      <div style="text-align:center;margin-bottom:8px">
+        <div style="font-size:16px;font-weight:bold">${r.store_name}</div>
+        ${r.store_address ? '<div style="font-size:10px">' + r.store_address + '</div>' : ''}
+        ${r.store_phone ? '<div style="font-size:10px">' + r.store_phone + '</div>' : ''}
+      </div>
+      <div style="border-top:1px dashed #000;margin:6px 0"></div>
+      <div style="font-size:11px"><div>${r.transaction_code}</div><div>${r.date}</div><div>Kasir: ${r.cashier}</div>
+        ${r.customer_name ? '<div>Customer: ' + r.customer_name + '</div>' : ''}
+        ${r.table_number ? '<div>Meja: ' + r.table_number + '</div>' : ''}
+      </div>
+      <div style="border-top:1px dashed #000;margin:6px 0"></div>
+      <table style="width:100%;font-size:11px;border-collapse:collapse">${itemsHtml}</table>
+      <div style="border-top:1px dashed #000;margin:6px 0"></div>
+      <table style="width:100%;font-size:11px">
+        <tr><td>Subtotal</td><td style="text-align:right">${formatRp(r.total_amount)}</td></tr>
+        ${r.discount_amount ? '<tr><td>Diskon</td><td style="text-align:right">-' + formatRp(r.discount_amount) + '</td></tr>' : ''}
+        <tr style="font-weight:bold;font-size:13px"><td>TOTAL</td><td style="text-align:right">${formatRp(r.final_amount)}</td></tr>
+      </table>
+      <div style="border-top:1px dashed #000;margin:6px 0"></div>
+      <div style="text-align:center;font-size:10px"><div>Bayar: ${r.payment_method}</div><div style="margin-top:6px">Terima kasih!</div></div>
+    </div>`
+  const pw = window.open('', '_blank', 'width=320,height=600')
+  pw.document.write(`<html><head><title>Struk</title><style>@media print{body{margin:0}@page{size:80mm auto;margin:0}}</style></head><body>${html}</body></html>`)
+  pw.document.close()
+  pw.focus()
+  setTimeout(() => pw.print(), 300)
 }
 
 onMounted(async () => {

@@ -26,6 +26,7 @@ const router = createRouter({
         { path: 'reports', name: 'reports', component: () => import('@/views/ReportsView.vue'), meta: { role: 'manager' } },
         { path: 'users', name: 'users', component: () => import('@/views/UsersView.vue'), meta: { role: 'admin' } },
         { path: 'tenants', name: 'tenants', component: () => import('@/views/TenantsView.vue'), meta: { role: 'superadmin' } },
+        { path: 'watchlist', name: 'watchlist', component: () => import('@/views/WatchlistView.vue') },
         { path: 'ai', name: 'ai', component: () => import('@/views/AiView.vue') },
         { path: 'settings', name: 'settings', component: () => import('@/views/SettingsView.vue') },
       ]

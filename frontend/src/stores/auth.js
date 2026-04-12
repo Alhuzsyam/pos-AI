@@ -13,9 +13,18 @@ export const useAuthStore = defineStore('auth', () => {
   const isManager = computed(() => ['superadmin', 'admin', 'manager'].includes(user.value?.role))
   const isKasir = computed(() => ['superadmin', 'admin', 'manager', 'kasir'].includes(user.value?.role))
 
+  const isDapur = computed(() => ['superadmin', 'admin', 'manager', 'dapur'].includes(user.value?.role))
+  const isWaiter = computed(() => ['superadmin', 'admin', 'manager', 'waiter'].includes(user.value?.role))
+
   function can(role) {
-    const hierarchy = { superadmin: 5, admin: 4, manager: 3, kasir: 2, inventory: 1 }
-    return (hierarchy[user.value?.role] || 0) >= (hierarchy[role] || 0)
+    const hierarchy = { superadmin: 5, admin: 4, manager: 3, kasir: 2, inventory: 1, dapur: 1, waiter: 1 }
+    const userLevel = hierarchy[user.value?.role] || 0
+    const requiredLevel = hierarchy[role] || 0
+    // dapur/waiter are special: they can only access their own station + dashboard
+    if (['dapur', 'waiter'].includes(user.value?.role)) {
+      return ['dapur', 'waiter'].includes(role) || requiredLevel <= userLevel
+    }
+    return userLevel >= requiredLevel
   }
 
   async function login(username, password) {
@@ -46,5 +55,5 @@ export const useAuthStore = defineStore('auth', () => {
     router.push('/login')
   }
 
-  return { user, accessToken, isAuthenticated, isSuperAdmin, isAdmin, isManager, isKasir, can, login, logout }
+  return { user, accessToken, isAuthenticated, isSuperAdmin, isAdmin, isManager, isKasir, isDapur, isWaiter, can, login, logout }
 })

@@ -39,18 +39,27 @@
             <th>Meja</th>
             <th>Pembayaran</th>
             <th>Total</th>
-            <th>Status</th>
+            <th>Aksi</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="sale in sales" :key="sale.id" @click="selectedSale = sale" class="cursor-pointer">
+          <tr v-for="sale in sales" :key="sale.id">
             <td class="font-mono text-xs text-brand-700">{{ sale.transaction_code }}</td>
             <td class="text-xs text-gray-500">{{ formatDate(sale.transaction_date) }}</td>
             <td>{{ sale.customer_name || '-' }}</td>
             <td>{{ sale.table_number || '-' }}</td>
-            <td><span class="badge-gray">{{ sale.payment_method }}</span></td>
+            <td>
+              <button @click="openEditPayment(sale)" class="badge-gray cursor-pointer hover:bg-brand-50 transition-colors" title="Klik untuk edit metode bayar">
+                {{ sale.payment_method }}
+              </button>
+            </td>
             <td class="font-semibold text-gray-900">{{ formatRp(sale.final_amount) }}</td>
-            <td><span class="badge-green">{{ sale.status }}</span></td>
+            <td>
+              <div class="flex gap-1">
+                <button @click="selectedSale = sale" class="btn-secondary btn-xs">Detail</button>
+                <button @click="printReceipt(sale.id)" class="btn-primary btn-xs">Struk</button>
+              </div>
+            </td>
           </tr>
           <tr v-if="!sales.length">
             <td colspan="7" class="text-center text-gray-300 py-8">Belum ada transaksi</td>
@@ -88,19 +97,51 @@
           <div class="flex justify-between text-gray-400"><span>Diskon</span><span>-{{ formatRp(selectedSale.discount_amount) }}</span></div>
           <div class="flex justify-between font-bold text-gray-900"><span>Total</span><span class="text-brand-700">{{ formatRp(selectedSale.final_amount) }}</span></div>
         </div>
+        <div class="flex gap-2 mt-4">
+          <button @click="printReceipt(selectedSale.id)" class="btn-primary flex-1">Cetak Struk</button>
+          <button @click="selectedSale = null" class="btn-secondary flex-1">Tutup</button>
+        </div>
       </div>
     </div>
+
+    <!-- Edit Payment Modal -->
+    <div v-if="editPaymentSale" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+      <div class="card p-6 w-full max-w-sm">
+        <h2 class="font-bold text-gray-900 mb-4">Edit Metode Pembayaran</h2>
+        <p class="text-sm text-gray-500 mb-3">{{ editPaymentSale.transaction_code }}</p>
+        <div class="grid grid-cols-2 gap-2 mb-4">
+          <button v-for="method in paymentMethods" :key="method"
+            @click="newPaymentMethod = method"
+            :class="['py-3 rounded-lg text-[13px] font-medium border transition-colors',
+              newPaymentMethod === method ? 'bg-brand-500 text-white border-brand-500' : 'bg-white text-claude-slate border-claude-line hover:bg-brand-50']">
+            {{ method }}
+          </button>
+        </div>
+        <div class="flex gap-2">
+          <button @click="savePaymentMethod" class="btn-primary flex-1" :disabled="newPaymentMethod === editPaymentSale.payment_method">Simpan</button>
+          <button @click="editPaymentSale = null" class="btn-secondary flex-1">Batal</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hidden Receipt for Printing -->
+    <div id="receipt-print" class="hidden"></div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, reactive } from 'vue'
 import api from '@/composables/useApi'
+import { useToast } from 'vue-toastification'
 import dayjs from 'dayjs'
 
+const toast = useToast()
 const sales = ref([])
 const selectedSale = ref(null)
+const editPaymentSale = ref(null)
+const newPaymentMethod = ref('CASH')
 const filters = reactive({ dateFrom: '', dateTo: '' })
+const paymentMethods = ['CASH', 'QRIS', 'TRANSFER', 'DEBIT', 'CREDIT']
 
 const totalRevenue = computed(() => sales.value.reduce((s, t) => s + (t.final_amount || 0), 0))
 const avgTransaction = computed(() => sales.value.length ? totalRevenue.value / sales.value.length : 0)
@@ -120,6 +161,85 @@ function resetFilter() {
   filters.dateFrom = ''
   filters.dateTo = ''
   loadSales()
+}
+
+function openEditPayment(sale) {
+  editPaymentSale.value = sale
+  newPaymentMethod.value = sale.payment_method
+}
+
+async function savePaymentMethod() {
+  try {
+    await api.patch(`/api/v1/pos/sales/${editPaymentSale.value.id}/payment`, {
+      payment_method: newPaymentMethod.value,
+    })
+    toast.success(`Metode bayar diubah ke ${newPaymentMethod.value}`)
+    editPaymentSale.value.payment_method = newPaymentMethod.value
+    editPaymentSale.value = null
+    loadSales()
+  } catch (e) {
+    toast.error(e.response?.data?.detail || 'Gagal update')
+  }
+}
+
+async function printReceipt(saleId) {
+  try {
+    const res = await api.get(`/api/v1/pos/sales/${saleId}/receipt`)
+    const r = res.data
+    const itemsHtml = r.items.map(i =>
+      `<tr>
+        <td style="text-align:left">${i.qty}x ${i.name}${i.note ? '<br><small style="color:#888">' + i.note + '</small>' : ''}</td>
+        <td style="text-align:right">${formatRp(i.subtotal)}</td>
+      </tr>`
+    ).join('')
+
+    const html = `
+      <div style="font-family:'Courier New',monospace;width:280px;padding:10px;font-size:12px;color:#000">
+        <div style="text-align:center;margin-bottom:8px">
+          <div style="font-size:16px;font-weight:bold">${r.store_name}</div>
+          ${r.store_address ? '<div style="font-size:10px">' + r.store_address + '</div>' : ''}
+          ${r.store_phone ? '<div style="font-size:10px">' + r.store_phone + '</div>' : ''}
+        </div>
+        <div style="border-top:1px dashed #000;margin:6px 0"></div>
+        <div style="font-size:11px">
+          <div>${r.transaction_code}</div>
+          <div>${r.date}</div>
+          <div>Kasir: ${r.cashier}</div>
+          ${r.customer_name ? '<div>Customer: ' + r.customer_name + '</div>' : ''}
+          ${r.table_number ? '<div>Meja: ' + r.table_number + '</div>' : ''}
+        </div>
+        <div style="border-top:1px dashed #000;margin:6px 0"></div>
+        <table style="width:100%;font-size:11px;border-collapse:collapse">
+          ${itemsHtml}
+        </table>
+        <div style="border-top:1px dashed #000;margin:6px 0"></div>
+        <table style="width:100%;font-size:11px">
+          <tr><td>Subtotal</td><td style="text-align:right">${formatRp(r.total_amount)}</td></tr>
+          ${r.discount_amount ? '<tr><td>Diskon</td><td style="text-align:right">-' + formatRp(r.discount_amount) + '</td></tr>' : ''}
+          ${r.tax_amount ? '<tr><td>Pajak</td><td style="text-align:right">' + formatRp(r.tax_amount) + '</td></tr>' : ''}
+          <tr style="font-weight:bold;font-size:13px"><td>TOTAL</td><td style="text-align:right">${formatRp(r.final_amount)}</td></tr>
+        </table>
+        <div style="border-top:1px dashed #000;margin:6px 0"></div>
+        <div style="text-align:center;font-size:10px">
+          <div>Bayar: ${r.payment_method}</div>
+          <div style="margin-top:6px">Terima kasih!</div>
+          <div>Powered by POS-AI</div>
+        </div>
+      </div>
+    `
+
+    const printWindow = window.open('', '_blank', 'width=320,height=600')
+    printWindow.document.write(`
+      <html><head><title>Struk ${r.transaction_code}</title>
+      <style>@media print{body{margin:0}@page{size:80mm auto;margin:0}}</style>
+      </head><body>${html}</body></html>
+    `)
+    printWindow.document.close()
+    printWindow.focus()
+    setTimeout(() => { printWindow.print() }, 300)
+  } catch (e) {
+    toast.error('Gagal load struk')
+  }
 }
 
 onMounted(loadSales)

@@ -1,6 +1,22 @@
 <template>
   <div class="p-6 max-w-6xl mx-auto">
-    <h1 class="text-2xl font-bold text-gray-900 mb-6">Laporan & Analitik</h1>
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-bold text-gray-900">Laporan & Analitik</h1>
+      <div class="flex gap-2 items-end">
+        <div>
+          <label class="label text-[11px]">Dari</label>
+          <input v-model="exportFrom" type="date" class="input w-auto text-xs" />
+        </div>
+        <div>
+          <label class="label text-[11px]">Sampai</label>
+          <input v-model="exportTo" type="date" class="input w-auto text-xs" />
+        </div>
+        <button @click="downloadExcel" class="btn-primary btn-sm flex items-center gap-1" :disabled="exporting">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          {{ exporting ? 'Downloading...' : 'Export Excel' }}
+        </button>
+      </div>
+    </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <!-- Revenue Chart -->
@@ -106,6 +122,9 @@ const menuPerf = ref([])
 const invSummary = ref({})
 const revDays = ref(30)
 const menuDays = ref(30)
+const exportFrom = ref('')
+const exportTo = ref('')
+const exporting = ref(false)
 
 const formatRp = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n)
 
@@ -128,6 +147,31 @@ const doughnutData = computed(() => ({
 }))
 
 const donutOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+
+async function downloadExcel() {
+  exporting.value = true
+  try {
+    let url = '/api/v1/reports/export-excel'
+    const params = []
+    if (exportFrom.value) params.push(`date_from=${exportFrom.value}`)
+    if (exportTo.value) params.push(`date_to=${exportTo.value}`)
+    if (params.length) url += '?' + params.join('&')
+
+    const res = await api.get(url, { responseType: 'blob' })
+    const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    const disposition = res.headers['content-disposition'] || ''
+    const match = disposition.match(/filename="?(.+?)"?$/)
+    link.download = match ? match[1] : 'laporan.xlsx'
+    link.click()
+    URL.revokeObjectURL(link.href)
+  } catch (e) {
+    alert('Gagal download laporan')
+  } finally {
+    exporting.value = false
+  }
+}
 
 async function loadRevenue() {
   const res = await api.get(`/api/v1/reports/revenue/daily?days=${revDays.value}`)

@@ -101,6 +101,16 @@ require_kasir = require_roles(
 require_inventory = require_roles(
     UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.INVENTORY
 )
+require_dapur = require_roles(
+    UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.DAPUR
+)
+require_waiter = require_roles(
+    UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.WAITER
+)
+require_station = require_roles(
+    UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER,
+    UserRole.KASIR, UserRole.DAPUR, UserRole.WAITER
+)
 
 
 def get_tenant_filter(current_user: User = Depends(get_current_user)) -> Optional[int]:

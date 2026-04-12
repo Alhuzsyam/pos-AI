@@ -33,9 +33,15 @@ class TenantSettings(Base):
     business_description = Column(Text, nullable=True)
     target_daily_revenue = Column(Integer, default=0)       # target omzet per hari (Rp)
 
-    # Notification
+    # Notification / WhatsApp (WAHA)
     whatsapp_notify = Column(Boolean, default=False)
     whatsapp_number = Column(String(30), nullable=True)     # nomor untuk kirim weekly report
+    waha_url = Column(String(255), default="http://localhost:3000")
+    waha_api_key = Column(String(255), nullable=True)
+    waha_session = Column(String(50), default="default")
+    whatsapp_group_id = Column(String(100), nullable=True)  # group ID tujuan notif
+    whatsapp_schedule_hour = Column(Integer, default=21)     # jam kirim notif (0-23)
+    whatsapp_schedule_minute = Column(Integer, default=30)   # menit kirim notif
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

@@ -35,6 +35,12 @@ class SettingsUpdate(BaseModel):
     target_daily_revenue: Optional[int] = None
     whatsapp_notify: Optional[bool] = None
     whatsapp_number: Optional[str] = None
+    waha_url: Optional[str] = None
+    waha_api_key: Optional[str] = None
+    waha_session: Optional[str] = None
+    whatsapp_group_id: Optional[str] = None
+    whatsapp_schedule_hour: Optional[int] = None
+    whatsapp_schedule_minute: Optional[int] = None
 
 
 def _mask_key(key: Optional[str]) -> Optional[str]:
@@ -81,6 +87,13 @@ def get_settings(
         "target_daily_revenue": s.target_daily_revenue,
         "whatsapp_notify": s.whatsapp_notify,
         "whatsapp_number": s.whatsapp_number,
+        "waha_url": s.waha_url,
+        "waha_api_key": _mask_key(s.waha_api_key),
+        "has_waha_key": bool(s.waha_api_key),
+        "waha_session": s.waha_session,
+        "whatsapp_group_id": s.whatsapp_group_id,
+        "whatsapp_schedule_hour": s.whatsapp_schedule_hour,
+        "whatsapp_schedule_minute": s.whatsapp_schedule_minute,
     }
 
 
@@ -98,6 +111,38 @@ def update_settings(
     db.commit()
     db.refresh(s)
     return {"message": "Settings disimpan", "ai_provider": s.ai_provider, "has_key": bool(s.openai_api_key or s.gemini_api_key or s.groq_api_key)}
+
+
+# ====================================================
+# WhatsApp Test
+# ====================================================
+
+@router.post("/whatsapp/test")
+async def test_whatsapp(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Kirim pesan test ke WA group untuk verifikasi koneksi."""
+    from app.services.whatsapp import send_whatsapp_message, build_daily_report
+
+    tid = resolve_tenant_id(current_user, db)
+    s = _get_or_create_settings(tid, db)
+
+    if not s.whatsapp_group_id:
+        raise HTTPException(400, "WhatsApp Group ID belum diset")
+
+    message = build_daily_report(tid, db)
+    try:
+        await send_whatsapp_message(
+            waha_url=s.waha_url or "http://localhost:3000",
+            api_key=s.waha_api_key or "",
+            session=s.waha_session or "default",
+            chat_id=s.whatsapp_group_id,
+            text=message,
+        )
+        return {"message": "Pesan test berhasil dikirim!"}
+    except Exception as e:
+        raise HTTPException(500, f"Gagal kirim: {str(e)}")
 
 
 # ====================================================

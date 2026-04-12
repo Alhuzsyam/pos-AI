@@ -1,14 +1,17 @@
 """Analytics & reporting endpoints."""
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract, case
 from typing import Optional
 from datetime import date, timedelta, datetime
+from io import BytesIO
 
 from app.database import get_db
 from app.models.user import User
 from app.models.pos import Sale, SaleItem, Expense, MenuItem
 from app.models.inventory import Product, StockMovement
+from app.models.tenant import Tenant
 from app.core.deps import get_current_user, require_manager, resolve_tenant_id
 
 router = APIRouter(prefix="/api/v1/reports", tags=["Reports"])
@@ -188,3 +191,130 @@ def inventory_summary(
             for p in low_stock
         ],
     }
+
+
+@router.get("/export-excel")
+def export_excel(
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager),
+):
+    """
+    Export laporan keuangan ke Excel.
+    3 sheet: Ringkasan Keuangan, Rekap Penjualan Menu, Detail Belanja.
+    """
+    import xlsxwriter
+
+    tid = resolve_tenant_id(current_user, db)
+    if not date_from:
+        date_from = date.today().replace(day=1)
+    if not date_to:
+        date_to = date.today()
+
+    tenant = db.query(Tenant).filter(Tenant.id == tid).first()
+    store_name = tenant.name if tenant else "POS-AI"
+
+    # ---- Data queries ----
+    sales = db.query(Sale).filter(
+        Sale.tenant_id == tid,
+        Sale.status == "COMPLETED",
+        func.date(Sale.transaction_date) >= date_from,
+        func.date(Sale.transaction_date) <= date_to,
+    ).all()
+
+    menu_sales = db.query(
+        SaleItem.menu_name,
+        func.sum(SaleItem.quantity).label("qty"),
+        func.sum(SaleItem.subtotal).label("revenue"),
+    ).join(Sale).filter(
+        Sale.tenant_id == tid,
+        Sale.status == "COMPLETED",
+        func.date(Sale.transaction_date) >= date_from,
+        func.date(Sale.transaction_date) <= date_to,
+    ).group_by(SaleItem.menu_name).order_by(func.sum(SaleItem.subtotal).desc()).all()
+
+    expenses = db.query(Expense).filter(
+        Expense.tenant_id == tid,
+        Expense.purchase_date >= date_from,
+        Expense.purchase_date <= date_to,
+    ).order_by(Expense.purchase_date).all()
+
+    total_revenue = sum(s.final_amount for s in sales)
+    total_expense = sum(e.price for e in expenses)
+
+    # Cash vs QRIS breakdown
+    cash_total = sum(s.final_amount for s in sales if s.payment_method == "CASH")
+    qris_total = sum(s.final_amount for s in sales if s.payment_method == "QRIS")
+    other_total = total_revenue - cash_total - qris_total
+
+    # ---- Build Excel ----
+    output = BytesIO()
+    wb = xlsxwriter.Workbook(output, {"in_memory": True})
+
+    # Formats
+    header_fmt = wb.add_format({
+        "bold": True, "bg_color": "#2c4a3b", "font_color": "white",
+        "border": 1, "align": "center",
+    })
+    currency_fmt = wb.add_format({"num_format": "#,##0", "border": 1})
+    text_fmt = wb.add_format({"border": 1})
+    bold_fmt = wb.add_format({"bold": True, "border": 1})
+    title_fmt = wb.add_format({"bold": True, "font_size": 14})
+    subtitle_fmt = wb.add_format({"italic": True, "font_color": "#666666"})
+
+    # --- Sheet 1: Ringkasan Keuangan ---
+    ws1 = wb.add_worksheet("Ringkasan Keuangan")
+    ws1.set_column("A:A", 30)
+    ws1.set_column("B:B", 20)
+    ws1.write(0, 0, store_name, title_fmt)
+    ws1.write(1, 0, f"Periode: {date_from} s/d {date_to}", subtitle_fmt)
+
+    row = 3
+    for label, value in [
+        ("Total Penjualan", total_revenue),
+        ("  - Cash", cash_total),
+        ("  - QRIS", qris_total),
+        ("  - Lainnya", other_total),
+        ("Total Pengeluaran", total_expense),
+        ("Laba Bersih (estimasi)", total_revenue - total_expense),
+        ("Jumlah Transaksi", len(sales)),
+    ]:
+        ws1.write(row, 0, label, bold_fmt if "Total" in label or "Laba" in label else text_fmt)
+        ws1.write(row, 1, value, currency_fmt)
+        row += 1
+
+    # --- Sheet 2: Rekap Penjualan Menu ---
+    ws2 = wb.add_worksheet("Rekap Penjualan Menu")
+    ws2.set_column("A:A", 35)
+    ws2.set_column("B:C", 18)
+    for i, h in enumerate(["Menu", "Qty Terjual", "Revenue (Rp)"]):
+        ws2.write(0, i, h, header_fmt)
+    for idx, r in enumerate(menu_sales, 1):
+        ws2.write(idx, 0, r.menu_name, text_fmt)
+        ws2.write(idx, 1, r.qty, text_fmt)
+        ws2.write(idx, 2, r.revenue, currency_fmt)
+
+    # --- Sheet 3: Detail Belanja ---
+    ws3 = wb.add_worksheet("Detail Belanja")
+    ws3.set_column("A:A", 15)
+    ws3.set_column("B:B", 35)
+    ws3.set_column("C:C", 18)
+    ws3.set_column("D:D", 25)
+    for i, h in enumerate(["Tanggal", "Item", "Harga (Rp)", "Catatan"]):
+        ws3.write(0, i, h, header_fmt)
+    for idx, e in enumerate(expenses, 1):
+        ws3.write(idx, 0, str(e.purchase_date) if e.purchase_date else "", text_fmt)
+        ws3.write(idx, 1, e.item_name, text_fmt)
+        ws3.write(idx, 2, e.price, currency_fmt)
+        ws3.write(idx, 3, e.note or "", text_fmt)
+
+    wb.close()
+    output.seek(0)
+
+    filename = f"laporan_{store_name}_{date_from}_{date_to}.xlsx"
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

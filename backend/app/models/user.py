@@ -11,6 +11,8 @@ class UserRole(str, enum.Enum):
     MANAGER = "manager"         # Reports + staff management
     KASIR = "kasir"             # POS only
     INVENTORY = "inventory"     # Inventory management only
+    DAPUR = "dapur"             # Kitchen display - watchlist dapur/bar
+    WAITER = "waiter"           # Waiter display - watchlist delivery
 
 
 class User(Base):

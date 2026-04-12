@@ -14,15 +14,22 @@ from app.models.pos import (
     Expense, Debt, DebtItem, Reservation, ReservationItem
 )
 from app.models.inventory import Product, StockMovement
+from app.models.tenant import Tenant
 from app.core.deps import (
     get_current_user, require_kasir, require_manager, require_admin,
     resolve_tenant_id,
 )
+from app.models.tenant_settings import TenantSettings
 
 router = APIRouter(prefix="/api/v1/pos", tags=["POS"])
 
 
 # ==================== MENU ITEMS ====================
+
+class RecipeItemIn(BaseModel):
+    product_id: int
+    amount_needed: float
+
 
 class MenuItemCreate(BaseModel):
     name: str
@@ -32,6 +39,7 @@ class MenuItemCreate(BaseModel):
     division: str = "Bar"
     image_url: Optional[str] = None
     is_available: bool = True
+    recipes: List[RecipeItemIn] = []
 
 
 class MenuItemUpdate(BaseModel):
@@ -41,6 +49,7 @@ class MenuItemUpdate(BaseModel):
     category: Optional[str] = None
     division: Optional[str] = None
     is_available: Optional[bool] = None
+    recipes: Optional[List[RecipeItemIn]] = None
 
 
 @router.get("/menu")
@@ -52,14 +61,37 @@ def list_menu(
     current_user: User = Depends(get_current_user),
 ):
     tid = resolve_tenant_id(current_user, db)
-    q = db.query(MenuItem).filter(MenuItem.tenant_id == tid)
+    q = db.query(MenuItem).options(
+        joinedload(MenuItem.recipes)
+    ).filter(MenuItem.tenant_id == tid)
     if search:
         q = q.filter(MenuItem.name.ilike(f"%{search}%"))
     if division:
         q = q.filter(MenuItem.division == division)
     if available_only:
         q = q.filter(MenuItem.is_available == True)
-    return q.order_by(MenuItem.category, MenuItem.name).all()
+    items = q.order_by(MenuItem.category, MenuItem.name).all()
+    return [_menu_to_dict(item) for item in items]
+
+
+def _menu_to_dict(item: MenuItem) -> dict:
+    return {
+        "id": item.id,
+        "tenant_id": item.tenant_id,
+        "name": item.name,
+        "description": item.description,
+        "price": item.price,
+        "category": item.category,
+        "division": item.division,
+        "image_url": item.image_url,
+        "is_available": item.is_available,
+        "recipes": [
+            {"id": r.id, "product_id": r.product_id, "amount_needed": r.amount_needed,
+             "product_name": r.product.name if r.product else None,
+             "product_unit": r.product.unit if r.product else None}
+            for r in (item.recipes or [])
+        ],
+    }
 
 
 @router.post("/menu", status_code=201)
@@ -69,11 +101,17 @@ def create_menu_item(
     current_user: User = Depends(require_manager),
 ):
     tid = resolve_tenant_id(current_user, db)
-    item = MenuItem(tenant_id=tid, **body.model_dump())
+    data = body.model_dump(exclude={"recipes"})
+    item = MenuItem(tenant_id=tid, **data)
     db.add(item)
+    db.flush()
+
+    for r in body.recipes:
+        db.add(Recipe(menu_item_id=item.id, product_id=r.product_id, amount_needed=r.amount_needed))
+
     db.commit()
     db.refresh(item)
-    return item
+    return _menu_to_dict(item)
 
 
 @router.patch("/menu/{item_id}")
@@ -91,12 +129,18 @@ def update_menu_item(
     if not item:
         raise HTTPException(status_code=404, detail="Menu tidak ditemukan")
 
-    for field, value in body.model_dump(exclude_none=True).items():
+    for field, value in body.model_dump(exclude_none=True, exclude={"recipes"}).items():
         setattr(item, field, value)
+
+    # Sync recipes if provided
+    if body.recipes is not None:
+        db.query(Recipe).filter(Recipe.menu_item_id == item.id).delete()
+        for r in body.recipes:
+            db.add(Recipe(menu_item_id=item.id, product_id=r.product_id, amount_needed=r.amount_needed))
 
     db.commit()
     db.refresh(item)
-    return item
+    return _menu_to_dict(item)
 
 
 @router.delete("/menu/{item_id}", status_code=204)
@@ -242,6 +286,85 @@ def get_sale(
     if not sale:
         raise HTTPException(status_code=404, detail="Transaksi tidak ditemukan")
     return sale
+
+
+# ==================== EDIT PAYMENT METHOD ====================
+
+class PaymentMethodUpdate(BaseModel):
+    payment_method: str   # CASH | QRIS | TRANSFER | DEBIT | CREDIT
+
+
+@router.patch("/sales/{sale_id}/payment")
+def update_payment_method(
+    sale_id: int,
+    body: PaymentMethodUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_kasir),
+):
+    """Edit metode pembayaran transaksi."""
+    valid_methods = ["CASH", "QRIS", "TRANSFER", "DEBIT", "CREDIT"]
+    if body.payment_method not in valid_methods:
+        raise HTTPException(400, f"Metode tidak valid: {valid_methods}")
+
+    tid = resolve_tenant_id(current_user, db)
+    sale = db.query(Sale).filter(Sale.id == sale_id, Sale.tenant_id == tid).first()
+    if not sale:
+        raise HTTPException(404, "Transaksi tidak ditemukan")
+
+    old_method = sale.payment_method
+    sale.payment_method = body.payment_method
+    db.commit()
+    return {
+        "message": f"Metode bayar diubah dari {old_method} ke {body.payment_method}",
+        "sale_id": sale_id,
+    }
+
+
+# ==================== RECEIPT / STRUK ====================
+
+@router.get("/sales/{sale_id}/receipt")
+def get_receipt(
+    sale_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Data struk untuk di-print (browser print / thermal)."""
+    tid = resolve_tenant_id(current_user, db)
+    sale = db.query(Sale).options(joinedload(Sale.items)).filter(
+        Sale.id == sale_id, Sale.tenant_id == tid,
+    ).first()
+    if not sale:
+        raise HTTPException(404, "Transaksi tidak ditemukan")
+
+    # Get tenant info for receipt header
+    tenant = db.query(Tenant).filter(Tenant.id == tid).first()
+
+    return {
+        "store_name": tenant.name if tenant else "POS-AI",
+        "store_address": tenant.address if tenant else "",
+        "store_phone": tenant.phone if tenant else "",
+        "transaction_code": sale.transaction_code,
+        "date": sale.transaction_date.strftime("%d/%m/%Y %H:%M") if sale.transaction_date else "",
+        "cashier": current_user.full_name or current_user.username,
+        "customer_name": sale.customer_name,
+        "table_number": sale.table_number,
+        "payment_method": sale.payment_method,
+        "items": [
+            {
+                "name": item.menu_name,
+                "qty": item.quantity,
+                "price": item.price_at_moment,
+                "subtotal": item.subtotal,
+                "note": item.note,
+            }
+            for item in sale.items
+        ],
+        "total_amount": sale.total_amount,
+        "discount_amount": sale.discount_amount,
+        "tax_amount": sale.tax_amount,
+        "final_amount": sale.final_amount,
+        "notes": sale.notes,
+    }
 
 
 # ==================== EXPENSES ====================

@@ -69,7 +69,7 @@ class SaleItem(Base):
     price_at_moment = Column(Float, nullable=False)
     subtotal = Column(Float, nullable=False)
     note = Column(String(255), nullable=True)
-    status = Column(String(20), default="PENDING")   # PENDING | SERVED
+    status = Column(String(20), default="PENDING")   # PENDING | PREPARED | DELIVERED | SERVED
 
     sale = relationship("Sale", back_populates="items")
     menu_item = relationship("MenuItem")
