@@ -124,15 +124,23 @@ async def send_scheduled_report(tenant_id: int):
             TenantSettings.tenant_id == tenant_id
         ).first()
 
-        if not settings or not settings.whatsapp_notify or not settings.whatsapp_group_id:
+        if not settings or not settings.whatsapp_notify:
             return
+
+        # Tentukan chat_id: group prioritas, fallback ke personal number
+        chat_id = settings.whatsapp_group_id
+        if not chat_id:
+            if not settings.whatsapp_number:
+                return
+            number = settings.whatsapp_number.lstrip("+").replace("-", "").replace(" ", "")
+            chat_id = f"{number}@c.us"
 
         message = build_daily_report(tenant_id, db)
         await send_whatsapp_message(
-            waha_url=settings.waha_url or "http://localhost:3000",
+            waha_url=settings.waha_url or "http://localhost:3003",
             api_key=settings.waha_api_key or "",
             session=settings.waha_session or "default",
-            chat_id=settings.whatsapp_group_id,
+            chat_id=chat_id,
             text=message,
         )
     except Exception as e:

@@ -136,16 +136,22 @@ async def test_whatsapp(
     tid = resolve_tenant_id(current_user, db)
     s = _get_or_create_settings(tid, db)
 
-    if not s.whatsapp_group_id:
-        raise HTTPException(400, "WhatsApp Group ID belum diset")
+    # Tentukan chat_id: group prioritas, fallback ke personal number
+    chat_id = s.whatsapp_group_id
+    if not chat_id:
+        if not s.whatsapp_number:
+            raise HTTPException(400, "WhatsApp Group ID atau Nomor Personal belum diset")
+        # Format personal number untuk WAHA: 628xxx@c.us
+        number = s.whatsapp_number.lstrip("+").replace("-", "").replace(" ", "")
+        chat_id = f"{number}@c.us"
 
     message = build_daily_report(tid, db)
     try:
         await send_whatsapp_message(
-            waha_url=s.waha_url or "http://localhost:3000",
+            waha_url=s.waha_url or "http://localhost:3003",
             api_key=s.waha_api_key or "",
             session=s.waha_session or "default",
-            chat_id=s.whatsapp_group_id,
+            chat_id=chat_id,
             text=message,
         )
         return {"message": "Pesan test berhasil dikirim!"}
