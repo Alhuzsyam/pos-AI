@@ -8,7 +8,7 @@ from app import models  # noqa: F401 - trigger model registration
 
 # Import all routers. `settings` module is aliased to avoid collision with the
 # Pydantic settings object instantiated below.
-from app.routers import auth, tenants, users, inventory, pos, reports, ai, queue
+from app.routers import auth, tenants, users, inventory, pos, reports, ai, queue, payroll
 from app.routers import settings as settings_router
 
 settings = get_settings()
@@ -78,6 +78,7 @@ app.include_router(reports.router)
 app.include_router(ai.router)
 app.include_router(queue.router)
 app.include_router(settings_router.router)
+app.include_router(payroll.router)
 
 
 @app.get("/", tags=["Health"])

@@ -5,12 +5,18 @@
       <button @click="openCreate" class="btn-primary">+ Buat Reservasi</button>
     </div>
 
-    <!-- Filters: status + search -->
-    <div class="flex gap-2 mb-4 flex-wrap items-center">
+    <!-- Filters: status + tanggal + search -->
+    <div class="flex gap-2 mb-3 flex-wrap items-center">
       <button v-for="s in ['', 'PENDING','CONFIRMED','SERVING','COMPLETED','CANCELLED']" :key="s"
         @click="setStatus(s)"
         :class="statusFilter === s ? 'btn-primary' : 'btn-secondary'"
         class="btn-sm capitalize">{{ s || 'Semua' }}</button>
+    </div>
+    <div class="flex gap-2 mb-4 flex-wrap items-center">
+      <input v-model="dateFrom" type="date" class="input text-sm w-36" @change="page = 1" placeholder="Dari" />
+      <span class="text-gray-400 text-sm">—</span>
+      <input v-model="dateTo" type="date" class="input text-sm w-36" @change="page = 1" placeholder="Sampai" />
+      <button v-if="dateFrom || dateTo" @click="dateFrom = ''; dateTo = ''" class="btn-secondary btn-sm text-xs">Reset Tanggal</button>
       <div class="flex-1 min-w-[180px]">
         <input v-model="search" class="input w-full text-sm" placeholder="Cari nama / no HP..." />
       </div>
@@ -73,13 +79,16 @@
 
         <!-- Actions: CONFIRMED -->
         <div class="flex gap-2 mt-4" v-if="res.status === 'CONFIRMED'">
-          <button @click="openServeModal(res)" class="btn-primary btn-sm flex-1">🍽️ Sajikan</button>
+          <button @click="serveNow(res)" class="btn-primary btn-sm flex-1">🍽️ Sajikan</button>
           <button @click="updateStatus(res, 'CANCELLED')" class="btn-danger btn-sm flex-1">Batalkan</button>
         </div>
 
-        <!-- Actions: SERVING -->
-        <div class="flex gap-2 mt-4" v-if="res.status === 'SERVING'">
-          <button @click="completeReservation(res)" class="btn-primary btn-sm flex-1">Selesai</button>
+        <!-- Actions: SERVING — bayar setelah makan -->
+        <div class="mt-4" v-if="res.status === 'SERVING'">
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 text-sm text-amber-700">
+            🍽️ Sedang disajikan · Sisa bayar: <span class="font-bold">{{ formatRp((res.total_amount || 0) - res.dp_amount) }}</span>
+          </div>
+          <button @click="openSettleModal(res)" class="btn-primary btn-sm w-full">💳 Bayar Sekarang</button>
         </div>
       </div>
       <div v-if="!filtered.length" class="col-span-full text-center text-gray-300 py-16">Tidak ada reservasi</div>
@@ -153,30 +162,30 @@
       </div>
     </div>
 
-    <!-- Serve Modal -->
-    <div v-if="serveModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+    <!-- Settle Modal — bayar setelah makan -->
+    <div v-if="settleModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
       <div class="card p-6 w-full max-w-sm">
-        <h2 class="font-bold text-gray-900 mb-1">Sajikan Reservasi</h2>
-        <p class="text-sm text-gray-500 mb-2">{{ serveTarget.customer_name }}</p>
+        <h2 class="font-bold text-gray-900 mb-1">Pelunasan</h2>
+        <p class="text-sm text-gray-500 mb-3">{{ settleTarget.customer_name }}</p>
 
-        <div class="bg-gray-50 rounded-xl p-3 mb-4 space-y-1 text-sm">
-          <div class="flex justify-between"><span class="text-gray-500">Total</span><span class="font-medium">{{ formatRp(serveTarget.total_amount || 0) }}</span></div>
-          <div class="flex justify-between"><span class="text-gray-500">DP</span><span class="font-medium text-green-600">-{{ formatRp(serveTarget.dp_amount) }}</span></div>
-          <div class="flex justify-between font-bold border-t pt-1"><span>Sisa Bayar</span><span class="text-brand-700">{{ formatRp((serveTarget.total_amount || 0) - serveTarget.dp_amount) }}</span></div>
+        <div class="bg-gray-50 rounded-xl p-3 mb-4 space-y-1.5 text-sm">
+          <div class="flex justify-between"><span class="text-gray-500">Total Pesanan</span><span class="font-medium">{{ formatRp(settleTarget.total_amount || 0) }}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">DP sudah dibayar</span><span class="font-medium text-green-600">- {{ formatRp(settleTarget.dp_amount) }}</span></div>
+          <div class="flex justify-between font-bold text-base border-t pt-2"><span>Sisa Bayar</span><span class="text-brand-700">{{ formatRp((settleTarget.total_amount || 0) - settleTarget.dp_amount) }}</span></div>
         </div>
 
         <label class="label">Metode Pelunasan</label>
         <div class="flex gap-2 mb-4">
           <button v-for="m in ['CASH', 'QRIS', 'TRANSFER']" :key="m"
-            @click="serveMethod = m"
-            :class="['text-xs px-4 py-2 rounded-lg font-semibold border transition-all',
-              serveMethod === m ? 'bg-brand-700 text-white border-brand-700' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400']"
+            @click="settleMethod = m"
+            :class="['text-xs px-4 py-2 rounded-lg font-semibold border transition-all flex-1',
+              settleMethod === m ? 'bg-brand-700 text-white border-brand-700' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400']"
           >{{ m }}</button>
         </div>
 
         <div class="flex gap-2">
-          <button @click="confirmServe" class="btn-primary flex-1" :disabled="serving">{{ serving ? 'Memproses...' : 'Sajikan & Bayar' }}</button>
-          <button @click="serveModal = false" class="btn-secondary flex-1">Batal</button>
+          <button @click="confirmSettle" class="btn-primary flex-1" :disabled="settling">{{ settling ? 'Memproses...' : 'Konfirmasi Bayar' }}</button>
+          <button @click="settleModal = false" class="btn-secondary flex-1">Batal</button>
         </div>
       </div>
     </div>
@@ -196,6 +205,8 @@ const reservations = ref([])
 const menuItems = ref([])
 const statusFilter = ref('')
 const search = ref('')
+const dateFrom = ref('')
+const dateTo = ref('')
 const showModal = ref(false)
 const menuSearch = ref('')
 
@@ -205,11 +216,11 @@ const page = ref(1)
 
 const form = reactive({ customer_name: '', phone: '', table_number: '', pax: 2, reservation_date: '', dp_amount: 0, dp_method: 'CASH', notes: '', items: [] })
 
-// Serve modal
-const serveModal = ref(false)
-const serveTarget = ref(null)
-const serveMethod = ref('CASH')
-const serving = ref(false)
+// Settle modal (bayar setelah makan)
+const settleModal = ref(false)
+const settleTarget = ref(null)
+const settleMethod = ref('CASH')
+const settling = ref(false)
 
 const filtered = computed(() => {
   let list = reservations.value
@@ -220,6 +231,12 @@ const filtered = computed(() => {
       r.customer_name.toLowerCase().includes(q) ||
       (r.phone && r.phone.includes(q))
     )
+  }
+  if (dateFrom.value) {
+    list = list.filter(r => r.reservation_date && r.reservation_date >= dateFrom.value)
+  }
+  if (dateTo.value) {
+    list = list.filter(r => r.reservation_date && r.reservation_date.slice(0, 10) <= dateTo.value)
   }
   return list
 })
@@ -242,7 +259,7 @@ const pageNumbers = computed(() => {
 })
 
 // Reset to page 1 when filter/search changes
-watch([statusFilter, search], () => { page.value = 1 })
+watch([statusFilter, search, dateFrom, dateTo], () => { page.value = 1 })
 
 function setStatus(s) {
   statusFilter.value = s
@@ -272,10 +289,20 @@ function addMenuToForm(m) {
   menuSearch.value = ''
 }
 
-function openServeModal(res) {
-  serveTarget.value = res
-  serveMethod.value = 'CASH'
-  serveModal.value = true
+async function serveNow(res) {
+  try {
+    await api.post(`/api/v1/pos/reservations/${res.id}/serve`)
+    toast.success('Disajikan! Item masuk watchlist. Bayar setelah makan.')
+    loadReservations()
+  } catch (e) {
+    toast.error(e.response?.data?.detail || 'Gagal sajikan')
+  }
+}
+
+function openSettleModal(res) {
+  settleTarget.value = res
+  settleMethod.value = 'CASH'
+  settleModal.value = true
 }
 
 async function loadReservations() {
@@ -321,29 +348,20 @@ async function updateStatus(res, status) {
   }
 }
 
-async function confirmServe() {
-  serving.value = true
+async function confirmSettle() {
+  settling.value = true
   try {
-    await api.post(`/api/v1/pos/reservations/${serveTarget.value.id}/serve`, { settlement_method: serveMethod.value })
-    toast.success('Reservasi disajikan! Item masuk watchlist.')
-    serveModal.value = false
+    await api.post(`/api/v1/pos/reservations/${settleTarget.value.id}/settle`, { settlement_method: settleMethod.value })
+    toast.success('Pelunasan berhasil! Reservasi selesai.')
+    settleModal.value = false
     loadReservations()
   } catch (e) {
-    toast.error(e.response?.data?.detail || 'Gagal sajikan reservasi')
+    toast.error(e.response?.data?.detail || 'Gagal bayar')
   } finally {
-    serving.value = false
+    settling.value = false
   }
 }
 
-async function completeReservation(res) {
-  try {
-    await api.patch(`/api/v1/pos/reservations/${res.id}/complete`)
-    toast.success('Reservasi selesai!')
-    loadReservations()
-  } catch (e) {
-    toast.error(e.response?.data?.detail || 'Gagal selesaikan')
-  }
-}
 
 async function printDPReceipt(res) {
   if (!printer.pairedDevice.value) {

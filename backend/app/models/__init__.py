@@ -7,6 +7,7 @@ from app.models.pos import (
 )
 from app.models.ai_log import AIQueryLog
 from app.models.tenant_settings import TenantSettings, WeeklyInsight
+from app.models.payroll import Employee, PayrollRecord, MonthlyCost
 
 __all__ = [
     "Tenant", "User",
@@ -15,4 +16,5 @@ __all__ = [
     "Expense", "Debt", "DebtItem", "Reservation", "ReservationItem",
     "AIQueryLog",
     "TenantSettings", "WeeklyInsight",
+    "Employee", "PayrollRecord", "MonthlyCost",
 ]

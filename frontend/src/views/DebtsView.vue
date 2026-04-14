@@ -5,10 +5,17 @@
       <button @click="openCreateModal" class="btn-primary">+ Catat Hutang</button>
     </div>
 
-    <div class="flex gap-2 mb-4">
+    <div class="flex gap-2 mb-3 flex-wrap items-center">
       <button @click="filterPaid = null" :class="filterPaid === null ? 'btn-primary' : 'btn-secondary'" class="btn-sm">Semua</button>
       <button @click="filterPaid = false" :class="filterPaid === false ? 'btn-primary' : 'btn-secondary'" class="btn-sm">Belum Lunas</button>
       <button @click="filterPaid = true" :class="filterPaid === true ? 'btn-primary' : 'btn-secondary'" class="btn-sm">Lunas</button>
+    </div>
+    <div class="flex gap-2 mb-4 flex-wrap items-center">
+      <input v-model="dateFrom" type="date" class="input text-sm w-36" placeholder="Dari" />
+      <span class="text-gray-400 text-sm">—</span>
+      <input v-model="dateTo" type="date" class="input text-sm w-36" placeholder="Sampai" />
+      <button v-if="dateFrom || dateTo" @click="dateFrom = ''; dateTo = ''" class="btn-secondary btn-sm text-xs">Reset</button>
+      <p class="text-xs text-gray-400 ml-auto">{{ filteredDebts.length }} data</p>
     </div>
 
     <!-- Debts List -->
@@ -194,6 +201,8 @@ const toast = useToast()
 const debts = ref([])
 const menuItems = ref([])
 const filterPaid = ref(null)
+const dateFrom = ref('')
+const dateTo = ref('')
 const expanded = ref(null)
 
 // Create modal
@@ -214,9 +223,12 @@ const newItems = ref([])
 const menuSearch2 = ref('')
 const addingItems = ref(false)
 
-const filteredDebts = computed(() =>
-  filterPaid.value === null ? debts.value : debts.value.filter(d => d.is_paid === filterPaid.value)
-)
+const filteredDebts = computed(() => {
+  let list = filterPaid.value === null ? debts.value : debts.value.filter(d => d.is_paid === filterPaid.value)
+  if (dateFrom.value) list = list.filter(d => d.created_at && d.created_at >= dateFrom.value)
+  if (dateTo.value) list = list.filter(d => d.created_at && d.created_at.slice(0, 10) <= dateTo.value)
+  return list
+})
 
 const formTotal = computed(() => form.items.reduce((s, i) => s + i.price_at_moment * i.quantity, 0))
 const newItemsTotal = computed(() => newItems.value.reduce((s, i) => s + i.price_at_moment * i.quantity, 0))

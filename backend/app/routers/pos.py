@@ -757,22 +757,18 @@ def update_reservation_status(
 
 
 class ReservationServeBody(BaseModel):
-    settlement_method: str = "CASH"  # CASH | QRIS
+    settlement_method: str = "CASH"  # CASH | QRIS | TRANSFER
 
 
 @router.post("/reservations/{res_id}/serve")
 def serve_reservation(
     res_id: int,
-    body: ReservationServeBody,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_kasir),
 ):
     """
-    Hari H — sajikan reservasi:
-    1. Creates Sale + SaleItems (masuk watchlist as PENDING)
-    2. Deducts stock
-    3. Records settlement (pelunasan = total - dp)
-    4. Both DP + pelunasan masuk laporan
+    Sajikan reservasi — item masuk watchlist, BELUM bayar.
+    Pelunasan dilakukan setelah makan via /settle.
     """
     tid = resolve_tenant_id(current_user, db)
     res = db.query(Reservation).options(joinedload(Reservation.items)).filter(
@@ -787,9 +783,8 @@ def serve_reservation(
         raise HTTPException(400, "Reservasi belum punya item menu")
 
     total = sum(i.quantity * i.price_at_moment for i in res.items)
-    settlement = total - res.dp_amount
 
-    # Create Sale for the reservation
+    # Buat Sale dengan status PENDING — masuk watchlist, belum completed
     sale = Sale(
         tenant_id=tid,
         transaction_code=_generate_transaction_code(tid),
@@ -799,15 +794,15 @@ def serve_reservation(
         final_amount=total,
         customer_name=res.customer_name,
         table_number=res.table_number,
-        payment_method=body.settlement_method,
-        status="COMPLETED",
-        notes=f"Reservasi #{res.id} - DP: {res.dp_amount} ({res.dp_method}), Pelunasan: {settlement} ({body.settlement_method})",
+        payment_method="PENDING",
+        status="PENDING",
+        notes=f"Reservasi #{res.id} - DP: {res.dp_amount} ({res.dp_method})",
         cashier_id=current_user.id,
     )
     db.add(sale)
     db.flush()
 
-    # Create SaleItems (go to watchlist)
+    # Buat SaleItems — masuk watchlist
     for item in res.items:
         db.add(SaleItem(
             sale_id=sale.id,
@@ -821,19 +816,51 @@ def serve_reservation(
         if item.menu_item_id:
             _deduct_stock(item.menu_item_id, item.quantity, tid, current_user.username, db)
 
-    # Update reservation
     res.sale_id = sale.id
-    res.settlement_amount = settlement
-    res.settlement_method = body.settlement_method
-    res.status = "SERVING"
     res.total_amount = total
+    res.status = "SERVING"
 
     db.commit()
     return {
-        "message": "Reservasi disajikan! Item masuk watchlist.",
+        "message": "Reservasi disajikan! Item masuk watchlist. Lakukan pelunasan setelah makan.",
         "sale_id": sale.id,
-        "settlement": settlement,
+        "sisa_bayar": total - res.dp_amount,
     }
+
+
+@router.post("/reservations/{res_id}/settle")
+def settle_reservation(
+    res_id: int,
+    body: ReservationServeBody,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_kasir),
+):
+    """Pelunasan setelah makan — sale jadi COMPLETED."""
+    tid = resolve_tenant_id(current_user, db)
+    res = db.query(Reservation).filter(
+        Reservation.id == res_id, Reservation.tenant_id == tid,
+    ).first()
+    if not res:
+        raise HTTPException(404, "Reservasi tidak ditemukan")
+    if res.status != "SERVING":
+        raise HTTPException(400, "Reservasi harus dalam status SERVING untuk dilunasi")
+
+    settlement = (res.total_amount or 0) - res.dp_amount
+
+    # Update sale jadi COMPLETED
+    if res.sale_id:
+        sale = db.query(Sale).filter(Sale.id == res.sale_id).first()
+        if sale:
+            sale.status = "COMPLETED"
+            sale.payment_method = body.settlement_method
+            sale.notes = (sale.notes or "") + f", Pelunasan: {settlement} ({body.settlement_method})"
+
+    res.settlement_amount = settlement
+    res.settlement_method = body.settlement_method
+    res.status = "COMPLETED"
+
+    db.commit()
+    return {"message": "Pelunasan berhasil! Reservasi selesai.", "settlement": settlement}
 
 
 @router.patch("/reservations/{res_id}/complete")

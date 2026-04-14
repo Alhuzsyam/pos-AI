@@ -51,6 +51,8 @@
         <NavItem to="/ai" icon="sparkles" :label="collapsed ? '' : 'AI Assistant'" />
 
         <NavGroup v-if="!collapsed && auth.isAdmin" label="Manajemen" />
+        <NavItem to="/payroll" icon="currency-dollar" :label="collapsed ? '' : 'Gaji Karyawan'" v-if="auth.isAdmin" />
+        <NavItem to="/office" icon="office-pixel" :label="collapsed ? '' : 'Live Office'" v-if="auth.isAdmin" />
         <NavItem to="/users" icon="users" :label="collapsed ? '' : 'Pengguna'" v-if="auth.isAdmin" />
         <NavItem to="/tenants" icon="office-building" :label="collapsed ? '' : 'Tenant'" v-if="auth.isSuperAdmin" />
         <NavItem to="/settings" icon="cog" :label="collapsed ? '' : 'Pengaturan'" />
@@ -163,6 +165,8 @@
             <NavItem to="/menu" icon="menu-alt" label="Kelola Menu" v-if="auth.can('manager')" />
             <NavItem to="/reports" icon="chart-bar" label="Laporan" v-if="auth.can('manager')" />
             <NavItem to="/ai" icon="sparkles" label="AI Assistant" />
+            <NavItem to="/payroll" icon="currency-dollar" label="Gaji Karyawan" v-if="auth.isAdmin" />
+            <NavItem to="/office" icon="office-pixel" label="Live Office" v-if="auth.isAdmin" />
             <NavItem to="/users" icon="users" label="Pengguna" v-if="auth.isAdmin" />
             <NavItem to="/tenants" icon="office-building" label="Tenant" v-if="auth.isSuperAdmin" />
             <NavItem to="/settings" icon="cog" label="Pengaturan" />
