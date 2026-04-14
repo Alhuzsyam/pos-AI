@@ -36,6 +36,10 @@ def build_daily_report(tenant_id: int, db: Session) -> str:
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     store_name = tenant.name if tenant else "Toko"
 
+    # Ambil settings untuk target omzet
+    settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
+    target_daily = (settings.target_daily_revenue or 0) if settings else 0
+
     # Revenue hari ini
     today_revenue = db.query(func.sum(Sale.final_amount)).filter(
         Sale.tenant_id == tenant_id,
@@ -73,16 +77,33 @@ def build_daily_report(tenant_id: int, db: Session) -> str:
         Product.current_stock <= Product.min_stock_level,
     ).all()
 
-    # Build message
+    net_profit = today_revenue - today_expense
+
+    # Build message — skip baris yang nilainya 0
     lines = [
         f"📊 *Laporan Harian - {store_name}*",
         f"📅 {today.strftime('%d/%m/%Y')}",
         "",
-        f"💰 *Revenue:* Rp {today_revenue:,.0f}",
-        f"🧾 *Transaksi:* {trx_count}x",
-        f"💸 *Pengeluaran:* Rp {today_expense:,.0f}",
-        f"📈 *Laba Estimasi:* Rp {today_revenue - today_expense:,.0f}",
     ]
+
+    if trx_count > 0:
+        lines.append(f"🧾 *Transaksi:* {trx_count}x")
+    if today_revenue > 0:
+        lines.append(f"💰 *Revenue:* Rp {today_revenue:,.0f}")
+    if today_expense > 0:
+        lines.append(f"💸 *Pengeluaran:* Rp {today_expense:,.0f}")
+    if net_profit != 0:
+        lines.append(f"📈 *Laba Estimasi:* Rp {net_profit:,.0f}")
+
+    # Target capaian
+    if target_daily > 0:
+        pct = (today_revenue / target_daily) * 100
+        bar_filled = int(pct / 10)
+        bar_filled = min(bar_filled, 10)
+        progress_bar = "█" * bar_filled + "░" * (10 - bar_filled)
+        status_icon = "✅" if pct >= 100 else ("⚡" if pct >= 70 else "🔴")
+        lines.append(f"🎯 *Target:* {pct:.0f}% dari Rp {target_daily:,.0f}")
+        lines.append(f"  {status_icon} [{progress_bar}] {pct:.0f}%")
 
     if top_menu:
         lines.append("")
