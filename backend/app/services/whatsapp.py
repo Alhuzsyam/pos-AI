@@ -132,7 +132,7 @@ def build_daily_report(tenant_id: int, db: Session) -> str:
         lines.append("✅ Semua stok aman!")
 
     lines.append("")
-    lines.append("_Dikirim otomatis oleh POS-AI_")
+    lines.append("_Dikirim otomatis oleh POS-AI by Alhuzwiri_")
 
     return "\n".join(lines)
 
