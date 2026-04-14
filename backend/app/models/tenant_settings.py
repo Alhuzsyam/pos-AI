@@ -39,6 +39,9 @@ class TenantSettings(Base):
     # Watchlist / KDS mode
     watchlist_enabled = Column(Boolean, default=True)
 
+    # Live Office pixel art
+    office_enabled = Column(Boolean, default=True)
+
     # Printer settings (Bluetooth thermal)
     printer_name = Column(String(100), nullable=True)
     printer_address = Column(String(100), nullable=True)   # MAC address or IP

@@ -305,6 +305,16 @@
             <span class="text-sm font-medium" :class="divForm.watchlist_enabled ? 'text-green-600' : 'text-gray-400'">{{ divForm.watchlist_enabled ? 'Aktif' : 'Nonaktif' }}</span>
           </label>
         </div>
+        <div class="flex items-center justify-between pt-2 border-t">
+          <div>
+            <p class="text-sm font-medium text-gray-800">🎮 Live Office</p>
+            <p class="text-xs text-gray-400">Tampilkan menu Live Office pixel art di sidebar (khusus Admin)</p>
+          </div>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" v-model="divForm.office_enabled" class="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+            <span class="text-sm font-medium" :class="divForm.office_enabled ? 'text-green-600' : 'text-gray-400'">{{ divForm.office_enabled ? 'Aktif' : 'Nonaktif' }}</span>
+          </label>
+        </div>
         <button @click="saveDivSettings" class="btn-primary">Simpan Divisi & Watchlist</button>
       </div>
     </div>
@@ -397,7 +407,7 @@ const waForm = reactive({ whatsapp_notify: false, waha_url: 'http://waha:3000', 
 const showChatIdInfo = ref(false)
 const testingWa = ref(false)
 const pwForm = reactive({ old_password: '', new_password: '' })
-const divForm = reactive({ divisions: ['Bar', 'Kitchen', 'Titipan'], watchlist_enabled: true })
+const divForm = reactive({ divisions: ['Bar', 'Kitchen', 'Titipan'], watchlist_enabled: true, office_enabled: true })
 const newDivision = ref('')
 
 const providers = [
@@ -440,6 +450,7 @@ async function loadSettings() {
   // Divisions & Watchlist
   divForm.divisions = sRes.data.divisions || ['Bar', 'Kitchen', 'Titipan']
   divForm.watchlist_enabled = sRes.data.watchlist_enabled ?? true
+  divForm.office_enabled = sRes.data.office_enabled ?? true
 
   // WA settings
   waForm.whatsapp_notify = sRes.data.whatsapp_notify || false
@@ -535,7 +546,7 @@ function addDivision() {
 
 async function saveDivSettings() {
   try {
-    await api.patch('/api/v1/settings/', { divisions: divForm.divisions, watchlist_enabled: divForm.watchlist_enabled })
+    await api.patch('/api/v1/settings/', { divisions: divForm.divisions, watchlist_enabled: divForm.watchlist_enabled, office_enabled: divForm.office_enabled })
     toast.success('Divisi & Watchlist disimpan!')
     // Reset appSettings so sidebar re-fetches watchlist_enabled state
     appSettings.reset()

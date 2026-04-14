@@ -81,6 +81,10 @@ def run_column_migrations(engine) -> None:
             "tenant_settings", "whatsapp_schedule_minute",
             "ALTER TABLE tenant_settings ADD COLUMN whatsapp_schedule_minute INT NULL DEFAULT 30 AFTER whatsapp_schedule_hour",
         ),
+        (
+            "tenant_settings", "office_enabled",
+            "ALTER TABLE tenant_settings ADD COLUMN office_enabled TINYINT(1) NULL DEFAULT 1 AFTER watchlist_enabled",
+        ),
     ]
 
     with engine.connect() as conn:

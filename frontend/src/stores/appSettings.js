@@ -4,6 +4,7 @@ import api from '@/composables/useApi'
 
 export const useAppSettingsStore = defineStore('appSettings', () => {
   const watchlistEnabled = ref(true)
+  const officeEnabled = ref(true)
   const loaded = ref(false)
 
   async function load() {
@@ -11,6 +12,7 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
     try {
       const res = await api.get('/api/v1/settings/')
       watchlistEnabled.value = res.data.watchlist_enabled ?? true
+      officeEnabled.value = res.data.office_enabled ?? true
       loaded.value = true
     } catch {}
   }
@@ -18,7 +20,8 @@ export const useAppSettingsStore = defineStore('appSettings', () => {
   function reset() {
     loaded.value = false
     watchlistEnabled.value = true
+    officeEnabled.value = true
   }
 
-  return { watchlistEnabled, loaded, load, reset }
+  return { watchlistEnabled, officeEnabled, loaded, load, reset }
 })
