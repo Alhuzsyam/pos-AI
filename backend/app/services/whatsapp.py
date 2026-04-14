@@ -94,17 +94,17 @@ def build_daily_report(tenant_id: int, db: Session) -> str:
         lines.append("")
         lines.append("⚠️ *STOK RENDAH - Perlu Dibeli:*")
 
-        bar_items = [p for p in low_stock if p.division and "bar" in p.division.lower()]
-        kitchen_items = [p for p in low_stock if not p.division or "bar" not in p.division.lower()]
+        # Kelompokkan per divisi secara dinamis
+        division_map: dict[str, list] = {}
+        for p in low_stock:
+            div = (p.division or "Lainnya").strip()
+            division_map.setdefault(div, []).append(p)
 
-        if bar_items:
-            lines.append("  🍹 *Bar:*")
-            for p in bar_items:
-                lines.append(f"    • {p.name}: {p.current_stock}/{p.max_stock_level} {p.unit}")
-
-        if kitchen_items:
-            lines.append("  🍳 *Kitchen:*")
-            for p in kitchen_items:
+        div_icons = {"bar": "🍹", "kitchen": "🍳", "snack": "🍿", "titipan": "📦"}
+        for div_name, items in division_map.items():
+            icon = div_icons.get(div_name.lower(), "📋")
+            lines.append(f"  {icon} *{div_name}:*")
+            for p in items:
                 lines.append(f"    • {p.name}: {p.current_stock}/{p.max_stock_level} {p.unit}")
     else:
         lines.append("")

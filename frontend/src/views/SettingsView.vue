@@ -196,7 +196,7 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="label">WAHA URL</label>
-            <input v-model="waForm.waha_url" class="input text-xs" placeholder="http://localhost:3000" />
+            <input v-model="waForm.waha_url" class="input text-xs" placeholder="http://waha:3000" />
           </div>
           <div>
             <label class="label">WAHA Session</label>
@@ -208,9 +208,28 @@
           <input v-model="waForm.waha_api_key" class="input font-mono text-xs" :placeholder="currentSettings?.has_waha_key ? '••••••••••••' : 'API key WAHA'" />
         </div>
         <div>
-          <label class="label">WhatsApp Group ID</label>
-          <input v-model="waForm.whatsapp_group_id" class="input font-mono text-xs" placeholder="120363xxxxx@g.us" />
-          <p class="text-[10px] text-gray-400 mt-1">ID group WA tujuan notifikasi. Bisa didapat dari WAHA API.</p>
+          <div class="flex items-center gap-1 mb-1">
+            <label class="label mb-0">Chat ID Tujuan</label>
+            <button type="button" @click="showChatIdInfo = !showChatIdInfo"
+              class="w-4 h-4 rounded-full bg-gray-200 text-gray-500 text-[10px] font-bold leading-none flex items-center justify-center hover:bg-brand-100 hover:text-brand-700 transition-colors flex-shrink-0">
+              ?
+            </button>
+          </div>
+          <!-- Popup info -->
+          <div v-if="showChatIdInfo" class="mb-2 p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800 space-y-1.5">
+            <p class="font-semibold text-blue-900">Format Chat ID:</p>
+            <div class="flex items-start gap-2">
+              <span class="font-mono bg-blue-100 px-1.5 py-0.5 rounded text-blue-700 flex-shrink-0">@c.us</span>
+              <span><b>Personal</b> — nomor HP biasa. Contoh: <span class="font-mono">628123456789@c.us</span></span>
+            </div>
+            <div class="flex items-start gap-2">
+              <span class="font-mono bg-blue-100 px-1.5 py-0.5 rounded text-blue-700 flex-shrink-0">@g.us</span>
+              <span><b>Group</b> — ID group WA. Contoh: <span class="font-mono">120363xxxxx@g.us</span></span>
+            </div>
+            <p class="text-blue-600 pt-0.5">Group ID bisa didapat dari WAHA Dashboard → Chats.</p>
+          </div>
+          <input v-model="waForm.whatsapp_group_id" class="input font-mono text-xs" placeholder="628xxx@c.us atau 120363xxxxx@g.us" />
+          <p class="text-[10px] text-gray-400 mt-1">Bisa ke personal (<span class="font-mono">@c.us</span>) atau group (<span class="font-mono">@g.us</span>).</p>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
@@ -374,7 +393,8 @@ const generating = ref(false)
 
 const aiForm = reactive({ ai_provider: 'openai', openai_api_key: '', gemini_api_key: '', groq_api_key: '', ollama_host: '', ai_model: 'gpt-4o-mini' })
 const bizForm = reactive({ business_type: 'cafe', business_description: '', target_daily_revenue: 0 })
-const waForm = reactive({ whatsapp_notify: false, waha_url: 'http://localhost:3000', waha_api_key: '', waha_session: 'default', whatsapp_group_id: '', whatsapp_schedule_hour: 21, whatsapp_schedule_minute: 30 })
+const waForm = reactive({ whatsapp_notify: false, waha_url: 'http://waha:3000', waha_api_key: '', waha_session: 'default', whatsapp_group_id: '', whatsapp_schedule_hour: 21, whatsapp_schedule_minute: 30 })
+const showChatIdInfo = ref(false)
 const testingWa = ref(false)
 const pwForm = reactive({ old_password: '', new_password: '' })
 const divForm = reactive({ divisions: ['Bar', 'Kitchen', 'Titipan'], watchlist_enabled: true })
@@ -423,7 +443,7 @@ async function loadSettings() {
 
   // WA settings
   waForm.whatsapp_notify = sRes.data.whatsapp_notify || false
-  waForm.waha_url = sRes.data.waha_url || 'http://localhost:3000'
+  waForm.waha_url = sRes.data.waha_url || 'http://waha:3000'
   waForm.waha_session = sRes.data.waha_session || 'default'
   waForm.whatsapp_group_id = sRes.data.whatsapp_group_id || ''
   waForm.whatsapp_schedule_hour = sRes.data.whatsapp_schedule_hour ?? 21
