@@ -33,6 +33,7 @@ def get_queue(
 
     q = (
         db.query(SaleItem)
+        .options(joinedload(SaleItem.sale), joinedload(SaleItem.menu_item))
         .join(Sale, SaleItem.sale_id == Sale.id)
         .outerjoin(MenuItem, SaleItem.menu_item_id == MenuItem.id)
         .filter(Sale.tenant_id == tid, Sale.status.in_(["COMPLETED", "PENDING"]))
@@ -86,19 +87,27 @@ def queue_counts(
     settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tid).first()
     divisions = (settings.divisions if settings and settings.divisions else ["Bar", "Kitchen", "Titipan"])
 
-    base = (
-        db.query(SaleItem)
+    # Base sale filter (no menu join yet — added per-query below)
+    sale_filter = (
+        db.query(SaleItem.id)
         .join(Sale, SaleItem.sale_id == Sale.id)
-        .outerjoin(MenuItem, SaleItem.menu_item_id == MenuItem.id)
         .filter(Sale.tenant_id == tid, Sale.status.in_(["COMPLETED", "PENDING"]))
     )
 
     result = {}
     for div in divisions:
-        result[div.lower()] = base.filter(
-            MenuItem.division == div, SaleItem.status == "PENDING"
-        ).count()
-    result["waiter"] = base.filter(SaleItem.status == "PREPARED").count()
+        result[div.lower()] = (
+            sale_filter
+            .join(MenuItem, SaleItem.menu_item_id == MenuItem.id)
+            .filter(MenuItem.division == div, SaleItem.status == "PENDING")
+            .count()
+        )
+    # Waiter: count ALL PREPARED items (any division, including no menu item)
+    result["waiter"] = (
+        sale_filter
+        .filter(SaleItem.status == "PREPARED")
+        .count()
+    )
 
     return result
 

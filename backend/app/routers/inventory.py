@@ -160,6 +160,8 @@ def delete_product(
     ).first()
     if not p:
         raise HTTPException(status_code=404, detail="Produk tidak ditemukan")
+    # Delete related stock movements first to avoid FK constraint error
+    db.query(StockMovement).filter(StockMovement.product_id == product_id).delete()
     db.delete(p)
     db.commit()
 

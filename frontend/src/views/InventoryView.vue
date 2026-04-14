@@ -53,8 +53,14 @@
               <div class="flex gap-1">
                 <button @click="openMovement(p, 'IN')" class="btn-secondary btn-sm">+ Stok</button>
                 <button @click="openMovement(p, 'OUT')" class="btn-danger btn-sm">- Stok</button>
+                <button @click="confirmDelete(p)" class="btn-sm border border-red-200 text-red-500 hover:bg-red-50 rounded-lg px-2 transition-colors" title="Hapus produk">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
               </div>
             </td>
+          </tr>
+          <tr v-if="!filtered.length">
+            <td colspan="7" class="text-center text-gray-300 py-10">Tidak ada produk</td>
           </tr>
         </tbody>
       </table>
@@ -100,6 +106,22 @@
         </div>
       </div>
     </div>
+
+    <!-- Delete Confirm Modal -->
+    <div v-if="deleteTarget" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+      <div class="card p-6 w-full max-w-sm">
+        <h2 class="font-serif text-[20px] text-claude-ink mb-2">Hapus Produk?</h2>
+        <p class="text-[13px] text-claude-slate mb-5">
+          <span class="font-semibold text-red-600">{{ deleteTarget.name }}</span> akan dihapus permanen beserta riwayat stoknya.
+        </p>
+        <div class="flex gap-2">
+          <button @click="doDelete" class="btn-danger flex-1" :disabled="deleting">
+            {{ deleting ? 'Menghapus...' : 'Ya, Hapus' }}
+          </button>
+          <button @click="deleteTarget = null" class="btn-secondary flex-1">Batal</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -115,6 +137,8 @@ const lowStockOnly = ref(false)
 const showModal = ref(false)
 const form = reactive({ name: '', sku: '', current_stock: 0, unit: 'pcs', min_stock_level: 5, division: '' })
 const movModal = reactive({ show: false, product: null, type: 'IN', qty: 1, notes: '' })
+const deleteTarget = ref(null)
+const deleting = ref(false)
 
 const filtered = computed(() =>
   products.value.filter(p =>
@@ -160,6 +184,24 @@ async function submitMovement() {
     loadProducts()
   } catch (e) {
     toast.error(e.response?.data?.detail || 'Gagal update stok')
+  }
+}
+
+function confirmDelete(product) {
+  deleteTarget.value = product
+}
+
+async function doDelete() {
+  deleting.value = true
+  try {
+    await api.delete(`/api/v1/inventory/products/${deleteTarget.value.id}`)
+    toast.success('Produk dihapus')
+    deleteTarget.value = null
+    loadProducts()
+  } catch (e) {
+    toast.error(e.response?.data?.detail || 'Gagal hapus produk')
+  } finally {
+    deleting.value = false
   }
 }
 

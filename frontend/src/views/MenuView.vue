@@ -34,11 +34,30 @@
         <div class="flex gap-2 mt-3">
           <button @click="openEdit(item)" class="btn-secondary btn-sm flex-1">Edit</button>
           <button @click="toggleAvail(item)" :class="item.is_available ? 'btn-danger' : 'btn-primary'" class="btn-sm flex-1">
-            {{ item.is_available ? 'Nonaktifkan' : 'Aktifkan' }}
+            {{ item.is_available ? 'Nonaktif' : 'Aktifkan' }}
+          </button>
+          <button @click="confirmDelete(item)" class="btn-sm border border-red-200 text-red-500 hover:bg-red-50 rounded-lg px-2 transition-colors" title="Hapus menu">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
           </button>
         </div>
       </div>
       <div v-if="!menu.length" class="col-span-full text-center text-claude-dust py-16 font-serif text-[16px]">Belum ada menu</div>
+    </div>
+
+    <!-- Delete Confirm Modal -->
+    <div v-if="deleteTarget" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+      <div class="card p-6 w-full max-w-sm">
+        <h2 class="font-serif text-[20px] text-claude-ink mb-2">Hapus Menu?</h2>
+        <p class="text-[13px] text-claude-slate mb-5">
+          Menu <span class="font-semibold text-red-600">{{ deleteTarget.name }}</span> akan dihapus permanen dari daftar POS.
+        </p>
+        <div class="flex gap-2">
+          <button @click="doDelete" class="btn-danger flex-1" :disabled="deleting">
+            {{ deleting ? 'Menghapus...' : 'Ya, Hapus' }}
+          </button>
+          <button @click="deleteTarget = null" class="btn-secondary flex-1">Batal</button>
+        </div>
+      </div>
     </div>
 
     <!-- Modal Add/Edit Menu -->
@@ -104,6 +123,8 @@ const divisions = ref(['Bar', 'Kitchen', 'Titipan'])
 const showModal = ref(false)
 const editItem = ref(null)
 const form = reactive({ name: '', price: 0, division: 'Bar', category: '', description: '', recipes: [] })
+const deleteTarget = ref(null)
+const deleting = ref(false)
 
 const formatRp = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n)
 
@@ -126,7 +147,7 @@ async function loadProducts() {
 
 function openAdd() {
   editItem.value = null
-  Object.assign(form, { name: '', price: 0, division: 'Bar', category: '', description: '', recipes: [] })
+  Object.assign(form, { name: '', price: 0, division: divisions.value[0] || '', category: '', description: '', recipes: [] })
   showModal.value = true
 }
 
@@ -173,6 +194,24 @@ async function saveMenu() {
 async function toggleAvail(item) {
   await api.patch(`/api/v1/pos/menu/${item.id}`, { is_available: !item.is_available })
   loadMenu()
+}
+
+function confirmDelete(item) {
+  deleteTarget.value = item
+}
+
+async function doDelete() {
+  deleting.value = true
+  try {
+    await api.delete(`/api/v1/pos/menu/${deleteTarget.value.id}`)
+    toast.success('Menu dihapus')
+    deleteTarget.value = null
+    loadMenu()
+  } catch (e) {
+    toast.error(e.response?.data?.detail || 'Gagal hapus menu')
+  } finally {
+    deleting.value = false
+  }
 }
 
 async function loadDivisions() {

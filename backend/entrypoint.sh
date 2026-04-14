@@ -23,8 +23,13 @@ echo "Running migrations..."
 python -c "
 from app.database import Base, engine
 from app import models
+from app.migrations import run_column_migrations
+# 1. Create brand-new tables (no-op for existing tables)
 Base.metadata.create_all(bind=engine)
 print('Tables created.')
+# 2. Add missing columns to existing tables
+run_column_migrations(engine)
+print('Column migrations done.')
 "
 
 echo "Seeding default tenant + superadmin..."

@@ -31,24 +31,51 @@
 
     <!-- Cart -->
     <div class="w-full md:w-80 flex flex-col bg-white">
-      <div class="p-4 border-b border-gray-100">
-        <h2 class="font-bold text-gray-900">Keranjang</h2>
-        <p class="text-xs text-gray-400">{{ cart.length }} item</p>
+      <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+        <div>
+          <h2 class="font-bold text-gray-900">Keranjang</h2>
+          <p class="text-xs text-gray-400">{{ cart.length }} item</p>
+        </div>
+        <!-- Printer status + connect button -->
+        <button
+          @click="connectPrinter"
+          :disabled="printer.isConnecting.value"
+          :class="[
+            'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-all',
+            printer.pairedDevice.value
+              ? 'border-green-200 text-green-700 bg-green-50 hover:bg-green-100'
+              : 'border-gray-200 text-gray-500 bg-gray-50 hover:bg-gray-100'
+          ]"
+        >
+          <span :class="printer.pairedDevice.value ? 'text-green-500' : 'text-gray-400'">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+            </svg>
+          </span>
+          {{ printer.isConnecting.value ? 'Connecting...' : printer.pairedDevice.value ? 'Printer OK' : 'Hubungkan' }}
+        </button>
       </div>
 
       <div class="flex-1 overflow-y-auto p-4 space-y-3">
         <div v-if="!cart.length" class="text-center text-gray-300 py-10 text-sm">Keranjang kosong</div>
-        <div v-for="item in cart" :key="item.id" class="flex items-center gap-3">
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-gray-800 truncate">{{ item.name }}</p>
-            <p class="text-xs text-gray-400">{{ formatRp(item.price) }} x {{ item.qty }}</p>
+        <div v-for="item in cart" :key="item.id" class="space-y-1">
+          <div class="flex items-center gap-3">
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-gray-800 truncate">{{ item.name }}</p>
+              <p class="text-xs text-gray-400">{{ formatRp(item.price) }} x {{ item.qty }}</p>
+            </div>
+            <div class="flex items-center gap-1">
+              <button @click="decQty(item)" class="w-6 h-6 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center text-sm hover:bg-red-50 hover:text-red-600">-</button>
+              <span class="w-6 text-center text-sm font-bold">{{ item.qty }}</span>
+              <button @click="incQty(item)" class="w-6 h-6 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center text-sm hover:bg-brand-50 hover:text-brand-700">+</button>
+            </div>
+            <p class="text-sm font-semibold text-brand-700 w-20 text-right">{{ formatRp(item.price * item.qty) }}</p>
           </div>
-          <div class="flex items-center gap-1">
-            <button @click="decQty(item)" class="w-6 h-6 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center text-sm hover:bg-red-50 hover:text-red-600">-</button>
-            <span class="w-6 text-center text-sm font-bold">{{ item.qty }}</span>
-            <button @click="incQty(item)" class="w-6 h-6 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center text-sm hover:bg-brand-50 hover:text-brand-700">+</button>
-          </div>
-          <p class="text-sm font-semibold text-brand-700 w-20 text-right">{{ formatRp(item.price * item.qty) }}</p>
+          <input
+            v-model="item.note"
+            class="w-full text-xs border border-gray-100 rounded-lg px-2 py-1 text-gray-600 placeholder-gray-300 focus:outline-none focus:border-brand-300 bg-gray-50"
+            placeholder="Catatan (misal: tanpa bawang, extra pedas...)"
+          />
         </div>
       </div>
 
@@ -77,12 +104,44 @@
             <button
               v-for="method in ['CASH', 'QRIS', 'TRANSFER', 'DEBIT']"
               :key="method"
-              @click="order.paymentMethod = method"
+              @click="order.paymentMethod = method; cashReceived = 0"
               :class="['text-xs px-3 py-1.5 rounded-lg font-semibold border transition-all',
                 order.paymentMethod === method
                   ? 'bg-brand-700 text-white border-brand-700'
                   : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400']"
             >{{ method }}</button>
+          </div>
+        </div>
+
+        <!-- Cash received + kembalian -->
+        <div v-if="!order.isDebt && order.paymentMethod === 'CASH'" class="space-y-2">
+          <label class="label">Uang Diterima</label>
+          <input
+            v-model.number="cashReceived"
+            type="number"
+            class="input"
+            placeholder="Masukkan nominal..."
+            @focus="cashReceived === 0 ? cashReceived = '' : null"
+          />
+          <!-- Quick denomination buttons -->
+          <div class="flex gap-1.5 flex-wrap">
+            <button
+              v-for="nom in quickNominals"
+              :key="nom"
+              @click="cashReceived = nom"
+              class="text-[11px] px-2 py-1 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors font-medium"
+            >{{ formatNom(nom) }}</button>
+          </div>
+          <!-- Kembalian -->
+          <div
+            v-if="cashReceived > 0"
+            :class="[
+              'rounded-xl p-3 flex justify-between items-center text-sm font-semibold',
+              change >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'
+            ]"
+          >
+            <span>{{ change >= 0 ? 'Kembalian' : 'Kurang' }}</span>
+            <span>{{ formatRp(Math.abs(change)) }}</span>
           </div>
         </div>
 
@@ -123,6 +182,23 @@
             Hutang
           </button>
         </div>
+
+        <!-- Cetak Struk — muncul setelah transaksi berhasil -->
+        <div v-if="lastSaleId" class="flex gap-2">
+          <button
+            @click="printReceipt(lastSaleId)"
+            :disabled="printer.isPrinting.value"
+            class="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border-2 border-brand-400 text-brand-700 text-sm font-semibold hover:bg-brand-50 transition-colors"
+          >
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+            </svg>
+            {{ printer.isPrinting.value ? 'Mencetak...' : 'Cetak Struk' }}
+          </button>
+          <button @click="lastSaleId = null" class="px-3 py-2.5 rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 text-sm transition-colors">
+            Lewati
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -142,8 +218,19 @@ const search = ref('')
 const filterDiv = ref('')
 const loading = ref(false)
 const divisions = ref(['Bar', 'Kitchen', 'Titipan'])
+const lastSaleId = ref(null)
+
+async function connectPrinter() {
+  try {
+    await printer.connectPrinter()
+    toast.success('Printer terhubung: ' + printer.pairedDevice.value?.name)
+  } catch (e) {
+    if (e.name !== 'NotFoundError') toast.error('Gagal hubungkan printer')
+  }
+}
 
 const order = reactive({ customerName: '', tableNumber: '', paymentMethod: 'CASH', discount: 0, isDebt: false, phone: '' })
+const cashReceived = ref(0)
 
 const filteredMenu = computed(() =>
   menu.value.filter(m =>
@@ -153,9 +240,26 @@ const filteredMenu = computed(() =>
 )
 
 const subtotal = computed(() => cart.value.reduce((s, i) => s + i.price * i.qty, 0))
+const totalAfterDiscount = computed(() => subtotal.value - order.discount)
+const change = computed(() => cashReceived.value - totalAfterDiscount.value)
+
+// Quick nominal buttons: round up total to nearest denominations
+const quickNominals = computed(() => {
+  const t = totalAfterDiscount.value
+  const denoms = [1000, 2000, 5000, 10000, 20000, 50000, 100000]
+  const result = []
+  for (const d of denoms) {
+    const rounded = Math.ceil(t / d) * d
+    if (rounded >= t && !result.includes(rounded) && result.length < 5) result.push(rounded)
+  }
+  return result
+})
 
 const formatRp = (n) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n)
+
+const formatNom = (n) =>
+  n >= 1000 ? (n / 1000) + 'rb' : n.toString()
 
 function divIcon(div) {
   const icons = { Kitchen: '🍳', Bar: '☕', Titipan: '📦' }
@@ -165,7 +269,7 @@ function divIcon(div) {
 function addToCart(item) {
   const existing = cart.value.find(c => c.id === item.id)
   if (existing) { existing.qty++; return }
-  cart.value.push({ id: item.id, name: item.name, price: item.price, qty: 1 })
+  cart.value.push({ id: item.id, name: item.name, price: item.price, qty: 1, note: '' })
 }
 
 function incQty(item) { item.qty++ }
@@ -187,6 +291,7 @@ async function checkout() {
       menu_name: i.name,
       quantity: i.qty,
       price_at_moment: i.price,
+      note: i.note || null,
     }))
     const res = await api.post('/api/v1/pos/sales', {
       items,
@@ -198,16 +303,15 @@ async function checkout() {
       phone: order.phone || null,
     })
     toast.success(order.isDebt ? 'Hutang tercatat! Item masuk watchlist.' : 'Transaksi berhasil!')
-    // Auto-print receipt (only for non-debt)
-    if (!order.isDebt && res.data?.id) {
-      try { await printReceipt(res.data.id) } catch {}
-    }
+    // Simpan sale ID untuk tombol "Cetak Struk" (hanya non-debt)
+    lastSaleId.value = (!order.isDebt && res.data?.id) ? res.data.id : null
     cart.value = []
     order.customerName = ''
     order.tableNumber = ''
     order.discount = 0
     order.isDebt = false
     order.phone = ''
+    cashReceived.value = 0
   } catch (e) {
     toast.error(e.response?.data?.detail || 'Gagal proses transaksi')
   } finally {
@@ -216,67 +320,36 @@ async function checkout() {
 }
 
 async function printReceipt(saleId) {
-  const res = await api.get(`/api/v1/pos/sales/${saleId}/receipt`)
-  const r = res.data
-
-  // Try Bluetooth first
-  if (printer.pairedDevice.value) {
-    try {
-      const content = printer.buildSaleReceipt({
-        storeName: r.store_name,
-        storeAddress: r.store_address,
-        storePhone: r.store_phone,
-        transactionCode: r.transaction_code,
-        date: r.date,
-        cashier: r.cashier,
-        customerName: r.customer_name,
-        tableNumber: r.table_number,
-        items: r.items.map(i => ({ menu_name: i.name, quantity: i.qty, price_at_moment: i.subtotal / i.qty })),
-        totalAmount: r.total_amount,
-        discountAmount: r.discount_amount,
-        finalAmount: r.final_amount,
-        paymentMethod: r.payment_method,
-      })
-      await printer.sendToPrinter(content)
-      toast.success('Struk dicetak via Bluetooth!')
+  if (!printer.pairedDevice.value) {
+    try { await printer.connectPrinter() } catch {
+      toast.error('Printer belum terhubung. Klik "Hubungkan" dulu.')
       return
-    } catch (e) {
-      console.warn('Bluetooth print failed, fallback to browser:', e)
     }
   }
-
-  // Fallback: browser print
-  const itemsHtml = r.items.map(i =>
-    `<tr><td style="text-align:left">${i.qty}x ${i.name}</td><td style="text-align:right">${formatRp(i.subtotal)}</td></tr>`
-  ).join('')
-  const html = `
-    <div style="font-family:'Courier New',monospace;width:280px;padding:10px;font-size:12px;color:#000">
-      <div style="text-align:center;margin-bottom:8px">
-        <div style="font-size:16px;font-weight:bold">${r.store_name}</div>
-        ${r.store_address ? '<div style="font-size:10px">' + r.store_address + '</div>' : ''}
-        ${r.store_phone ? '<div style="font-size:10px">' + r.store_phone + '</div>' : ''}
-      </div>
-      <div style="border-top:1px dashed #000;margin:6px 0"></div>
-      <div style="font-size:11px"><div>${r.transaction_code}</div><div>${r.date}</div><div>Kasir: ${r.cashier}</div>
-        ${r.customer_name ? '<div>Customer: ' + r.customer_name + '</div>' : ''}
-        ${r.table_number ? '<div>Meja: ' + r.table_number + '</div>' : ''}
-      </div>
-      <div style="border-top:1px dashed #000;margin:6px 0"></div>
-      <table style="width:100%;font-size:11px;border-collapse:collapse">${itemsHtml}</table>
-      <div style="border-top:1px dashed #000;margin:6px 0"></div>
-      <table style="width:100%;font-size:11px">
-        <tr><td>Subtotal</td><td style="text-align:right">${formatRp(r.total_amount)}</td></tr>
-        ${r.discount_amount ? '<tr><td>Diskon</td><td style="text-align:right">-' + formatRp(r.discount_amount) + '</td></tr>' : ''}
-        <tr style="font-weight:bold;font-size:13px"><td>TOTAL</td><td style="text-align:right">${formatRp(r.final_amount)}</td></tr>
-      </table>
-      <div style="border-top:1px dashed #000;margin:6px 0"></div>
-      <div style="text-align:center;font-size:10px"><div>Bayar: ${r.payment_method}</div><div style="margin-top:6px">Terima kasih!</div></div>
-    </div>`
-  const pw = window.open('', '_blank', 'width=320,height=600')
-  pw.document.write(`<html><head><title>Struk</title><style>@media print{body{margin:0}@page{size:80mm auto;margin:0}}</style></head><body>${html}</body></html>`)
-  pw.document.close()
-  pw.focus()
-  setTimeout(() => pw.print(), 300)
+  try {
+    const res = await api.get(`/api/v1/pos/sales/${saleId}/receipt`)
+    const r = res.data
+    const content = printer.buildSaleReceipt({
+      storeName: r.store_name,
+      storeAddress: r.store_address,
+      storePhone: r.store_phone,
+      transactionCode: r.transaction_code,
+      date: r.date,
+      cashier: r.cashier,
+      customerName: r.customer_name,
+      tableNumber: r.table_number,
+      items: r.items.map(i => ({ menu_name: i.name, quantity: i.qty, price_at_moment: i.price })),
+      totalAmount: r.total_amount,
+      discountAmount: r.discount_amount,
+      finalAmount: r.final_amount,
+      paymentMethod: r.payment_method,
+    })
+    await printer.sendToPrinter(content)
+    toast.success('Struk dicetak!')
+    lastSaleId.value = null
+  } catch (e) {
+    toast.error('Gagal cetak: ' + (e.message || 'Unknown error'))
+  }
 }
 
 async function loadDivisions() {

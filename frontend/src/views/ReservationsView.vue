@@ -5,15 +5,25 @@
       <button @click="openCreate" class="btn-primary">+ Buat Reservasi</button>
     </div>
 
-    <div class="flex gap-2 mb-4 flex-wrap">
+    <!-- Filters: status + search -->
+    <div class="flex gap-2 mb-4 flex-wrap items-center">
       <button v-for="s in ['', 'PENDING','CONFIRMED','SERVING','COMPLETED','CANCELLED']" :key="s"
-        @click="statusFilter = s"
+        @click="setStatus(s)"
         :class="statusFilter === s ? 'btn-primary' : 'btn-secondary'"
         class="btn-sm capitalize">{{ s || 'Semua' }}</button>
+      <div class="flex-1 min-w-[180px]">
+        <input v-model="search" class="input w-full text-sm" placeholder="Cari nama / no HP..." />
+      </div>
     </div>
 
+    <!-- Result count -->
+    <p class="text-xs text-gray-400 mb-3">
+      Menampilkan {{ paginated.length }} dari {{ filtered.length }} reservasi
+      <span v-if="search || statusFilter"> (difilter)</span>
+    </p>
+
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div v-for="res in filtered" :key="res.id" class="card p-5">
+      <div v-for="res in paginated" :key="res.id" class="card p-5">
         <div class="flex items-center justify-between mb-3">
           <div>
             <p class="font-bold text-gray-900">{{ res.customer_name }}</p>
@@ -50,7 +60,7 @@
           </button>
         </div>
 
-        <!-- Settlement info for SERVING/COMPLETED -->
+        <!-- Settlement info -->
         <div v-if="res.settlement_amount != null && res.status !== 'PENDING' && res.status !== 'CONFIRMED'" class="mt-3 bg-blue-50 rounded-lg p-2 text-xs text-blue-700">
           Pelunasan: {{ formatRp(res.settlement_amount) }} via {{ res.settlement_method }}
         </div>
@@ -61,18 +71,28 @@
           <button @click="updateStatus(res, 'CANCELLED')" class="btn-danger btn-sm flex-1">Batalkan</button>
         </div>
 
-        <!-- Actions: CONFIRMED — sajikan -->
+        <!-- Actions: CONFIRMED -->
         <div class="flex gap-2 mt-4" v-if="res.status === 'CONFIRMED'">
           <button @click="openServeModal(res)" class="btn-primary btn-sm flex-1">🍽️ Sajikan</button>
           <button @click="updateStatus(res, 'CANCELLED')" class="btn-danger btn-sm flex-1">Batalkan</button>
         </div>
 
-        <!-- Actions: SERVING — complete -->
+        <!-- Actions: SERVING -->
         <div class="flex gap-2 mt-4" v-if="res.status === 'SERVING'">
           <button @click="completeReservation(res)" class="btn-primary btn-sm flex-1">Selesai</button>
         </div>
       </div>
       <div v-if="!filtered.length" class="col-span-full text-center text-gray-300 py-16">Tidak ada reservasi</div>
+    </div>
+
+    <!-- Pagination -->
+    <div v-if="totalPages > 1" class="flex items-center justify-center gap-2 mt-6">
+      <button @click="page--" :disabled="page === 1" class="btn-secondary btn-sm px-3" :class="{ 'opacity-40 cursor-not-allowed': page === 1 }">‹</button>
+      <button v-for="p in pageNumbers" :key="p"
+        @click="page = p"
+        :class="['btn-sm px-3', page === p ? 'btn-primary' : 'btn-secondary']">{{ p }}</button>
+      <button @click="page++" :disabled="page === totalPages" class="btn-secondary btn-sm px-3" :class="{ 'opacity-40 cursor-not-allowed': page === totalPages }">›</button>
+      <span class="text-xs text-gray-400 ml-1">{{ page }} / {{ totalPages }}</span>
     </div>
 
     <!-- Create Modal -->
@@ -133,7 +153,7 @@
       </div>
     </div>
 
-    <!-- Serve Modal (sajikan) -->
+    <!-- Serve Modal -->
     <div v-if="serveModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
       <div class="card p-6 w-full max-w-sm">
         <h2 class="font-bold text-gray-900 mb-1">Sajikan Reservasi</h2>
@@ -147,7 +167,7 @@
 
         <label class="label">Metode Pelunasan</label>
         <div class="flex gap-2 mb-4">
-          <button v-for="m in ['CASH', 'QRIS']" :key="m"
+          <button v-for="m in ['CASH', 'QRIS', 'TRANSFER']" :key="m"
             @click="serveMethod = m"
             :class="['text-xs px-4 py-2 rounded-lg font-semibold border transition-all',
               serveMethod === m ? 'bg-brand-700 text-white border-brand-700' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400']"
@@ -164,7 +184,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, reactive } from 'vue'
+import { ref, computed, watch, onMounted, reactive } from 'vue'
 import api from '@/composables/useApi'
 import { useToast } from 'vue-toastification'
 import dayjs from 'dayjs'
@@ -175,8 +195,13 @@ const printer = usePrinter()
 const reservations = ref([])
 const menuItems = ref([])
 const statusFilter = ref('')
+const search = ref('')
 const showModal = ref(false)
 const menuSearch = ref('')
+
+// Pagination
+const PAGE_SIZE = 10
+const page = ref(1)
 
 const form = reactive({ customer_name: '', phone: '', table_number: '', pax: 2, reservation_date: '', dp_amount: 0, dp_method: 'CASH', notes: '', items: [] })
 
@@ -186,9 +211,43 @@ const serveTarget = ref(null)
 const serveMethod = ref('CASH')
 const serving = ref(false)
 
-const filtered = computed(() =>
-  statusFilter.value ? reservations.value.filter(r => r.status === statusFilter.value) : reservations.value
-)
+const filtered = computed(() => {
+  let list = reservations.value
+  if (statusFilter.value) list = list.filter(r => r.status === statusFilter.value)
+  if (search.value) {
+    const q = search.value.toLowerCase()
+    list = list.filter(r =>
+      r.customer_name.toLowerCase().includes(q) ||
+      (r.phone && r.phone.includes(q))
+    )
+  }
+  return list
+})
+
+const totalPages = computed(() => Math.ceil(filtered.value.length / PAGE_SIZE) || 1)
+
+const paginated = computed(() => {
+  const start = (page.value - 1) * PAGE_SIZE
+  return filtered.value.slice(start, start + PAGE_SIZE)
+})
+
+// Show up to 7 page numbers around current page
+const pageNumbers = computed(() => {
+  const total = totalPages.value
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const p = page.value
+  const start = Math.max(1, p - 3)
+  const end = Math.min(total, start + 6)
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i)
+})
+
+// Reset to page 1 when filter/search changes
+watch([statusFilter, search], () => { page.value = 1 })
+
+function setStatus(s) {
+  statusFilter.value = s
+  page.value = 1
+}
 
 const formItemsTotal = computed(() => form.items.reduce((s, i) => s + i.price_at_moment * i.quantity, 0))
 

@@ -140,6 +140,54 @@ def revenue_by_payment(
     return [{"method": r.payment_method, "total": r.total, "count": r.count} for r in rows]
 
 
+@router.get("/closing")
+def closing_report(
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Laporan closing: total transaksi & breakdown per metode pembayaran untuk rentang tanggal."""
+    today = date.today()
+    d_from = date_from or today
+    d_to = date_to or today
+
+    tid = resolve_tenant_id(current_user, db)
+
+    # Per-method breakdown
+    rows = db.query(
+        Sale.payment_method,
+        func.sum(Sale.final_amount).label("total"),
+        func.count(Sale.id).label("count"),
+    ).filter(
+        Sale.tenant_id == tid,
+        Sale.status == "COMPLETED",
+        func.date(Sale.transaction_date) >= d_from,
+        func.date(Sale.transaction_date) <= d_to,
+    ).group_by(Sale.payment_method).all()
+
+    breakdown = [{"method": r.payment_method, "total": float(r.total or 0), "count": int(r.count)} for r in rows]
+    grand_total = sum(b["total"] for b in breakdown)
+    grand_count = sum(b["count"] for b in breakdown)
+
+    # Expenses in the same range
+    expenses = db.query(func.sum(Expense.price)).filter(
+        Expense.tenant_id == tid,
+        Expense.purchase_date >= d_from,
+        Expense.purchase_date <= d_to,
+    ).scalar() or 0
+
+    return {
+        "date_from": str(d_from),
+        "date_to": str(d_to),
+        "grand_total": grand_total,
+        "grand_count": grand_count,
+        "breakdown": breakdown,
+        "total_expenses": float(expenses),
+        "net_profit": grand_total - float(expenses),
+    }
+
+
 @router.get("/menu/performance")
 def menu_performance(
     days: int = Query(30, le=365),

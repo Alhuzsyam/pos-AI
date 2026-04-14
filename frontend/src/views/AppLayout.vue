@@ -40,7 +40,7 @@
         <NavItem to="/debts" icon="book" :label="collapsed ? '' : 'Buku Hutang'" />
         <NavItem to="/reservations" icon="calendar" :label="collapsed ? '' : 'Reservasi'" />
 
-        <NavItem to="/watchlist" icon="clipboard-list" :label="collapsed ? '' : 'Watchlist / KDS'" />
+        <NavItem to="/watchlist" icon="clipboard-list" :label="collapsed ? '' : 'Watchlist / KDS'" v-if="appSettings.watchlistEnabled" />
 
         <NavGroup v-if="!collapsed" label="Produk & Stok" />
         <NavItem to="/inventory" icon="cube" :label="collapsed ? '' : 'Inventori'" v-if="auth.can('inventory')" />
@@ -57,8 +57,27 @@
       </nav>
 
       <!-- User footer -->
-      <div class="border-t border-claude-line px-3 py-3">
-        <div class="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-white transition-colors">
+      <div class="border-t border-claude-line px-3 py-3 space-y-1">
+        <!-- Theme toggle -->
+        <button
+          @click="theme.toggle()"
+          :title="theme.isDark ? 'Mode Siang' : 'Mode Malam'"
+          class="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-claude-surface transition-colors text-claude-slate hover:text-claude-graphite"
+        >
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-claude-surface">
+            <!-- Sun icon (shown in dark mode to switch to light) -->
+            <svg v-if="theme.isDark" class="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z"/>
+            </svg>
+            <!-- Moon icon (shown in light mode to switch to dark) -->
+            <svg v-else class="w-4 h-4 text-claude-slate" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+            </svg>
+          </div>
+          <span v-if="!collapsed" class="text-[13px]">{{ theme.isDark ? 'Mode Siang' : 'Mode Malam' }}</span>
+        </button>
+
+        <div class="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-claude-surface transition-colors">
           <div class="w-8 h-8 bg-brand-50 border border-brand-100 rounded-lg flex items-center justify-center flex-shrink-0">
             <span class="text-brand-600 font-semibold text-[11px]">{{ initials }}</span>
           </div>
@@ -83,14 +102,29 @@
 
     <!-- Main content -->
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
-      <!-- Mobile topbar -->
-      <header class="md:hidden bg-claude-paper border-b border-claude-line px-4 py-3 flex items-center gap-3">
-        <button @click="mobileOpen = !mobileOpen" class="text-claude-graphite">
+      <!-- Topbar (mobile hamburger + theme toggle) -->
+      <header class="bg-claude-paper border-b border-claude-line px-4 py-3 flex items-center gap-3">
+        <button @click="mobileOpen = !mobileOpen" class="md:hidden text-claude-graphite">
           <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <span class="font-serif text-[16px] text-claude-ink">POS-AI</span>
+        <span class="md:hidden font-serif text-[16px] text-claude-ink">POS-AI</span>
+        <div class="flex-1" />
+        <!-- Theme toggle — selalu keliatan -->
+        <button
+          @click="theme.toggle()"
+          :title="theme.isDark ? 'Mode Siang' : 'Mode Malam'"
+          class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-claude-line hover:bg-claude-surface transition-colors text-claude-slate text-[13px]"
+        >
+          <svg v-if="theme.isDark" class="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z"/>
+          </svg>
+          <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+          </svg>
+          <span class="hidden sm:inline">{{ theme.isDark ? 'Siang' : 'Malam' }}</span>
+        </button>
       </header>
 
       <!-- Page content -->
@@ -124,7 +158,7 @@
             <NavItem to="/expenses" icon="wallet" label="Pengeluaran" v-if="auth.can('kasir')" />
             <NavItem to="/debts" icon="book" label="Buku Hutang" />
             <NavItem to="/reservations" icon="calendar" label="Reservasi" />
-            <NavItem to="/watchlist" icon="clipboard-list" label="Watchlist / KDS" />
+            <NavItem to="/watchlist" icon="clipboard-list" label="Watchlist / KDS" v-if="appSettings.watchlistEnabled" />
             <NavItem to="/inventory" icon="cube" label="Inventori" v-if="auth.can('inventory')" />
             <NavItem to="/menu" icon="menu-alt" label="Kelola Menu" v-if="auth.can('manager')" />
             <NavItem to="/reports" icon="chart-bar" label="Laporan" v-if="auth.can('manager')" />
@@ -140,15 +174,21 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { RouterView } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useAppSettingsStore } from '@/stores/appSettings'
+import { useThemeStore } from '@/stores/theme'
 import NavItem from '@/components/NavItem.vue'
 import NavGroup from '@/components/NavGroup.vue'
 
 const auth = useAuthStore()
+const appSettings = useAppSettingsStore()
+const theme = useThemeStore()
 const collapsed = ref(false)
 const mobileOpen = ref(false)
+
+onMounted(() => { appSettings.load() })
 
 const initials = computed(() => {
   const name = auth.user?.full_name || auth.user?.username || 'U'

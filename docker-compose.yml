@@ -70,6 +70,32 @@ services:
     networks:
       - posai_net
 
+  # =============================================
+  # WAHA (WhatsApp HTTP API)
+  # =============================================
+  waha:
+    image: devlikeapro/waha:arm
+    platform: linux/arm64
+    container_name: independent_whatsapp
+    restart: unless-stopped
+    ports:
+      - "3003:3000" # Akses Dashboard via http://localhost:3003/dashboard
+    environment:
+      - WHATSAPP_DEFAULT_ENGINE=NOWEB
+      - WAHA_PRINT_QR=True
+      - WAHA_LOG_LEVEL=DEBUG
+      - WAHA_NOWEB_STORE_ENABLED=True
+      - WAHA_NOWEB_STORE_FULL_SYNC=True
+      - WAHA_API_KEY=ABCGDRETAJSH1h23526ahsh
+      - WAHA_DASHBOARD_USERNAME=admin
+      - WAHA_DASHBOARD_PASSWORD=rahasia
+      - WHATSAPP_SWAGGER_USERNAME=admin
+      - WHATSAPP_SWAGGER_PASSWORD=rahasia
+    volumes:
+      - ./waha_sessions:/app/.sessions
+    networks:
+      - posai_net
+
 # =============================================
 # Networks & Volumes
 # =============================================

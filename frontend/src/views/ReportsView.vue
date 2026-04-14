@@ -18,6 +18,101 @@
       </div>
     </div>
 
+    <!-- ── Laporan Closing ─────────────────────────────────────────────── -->
+    <div class="card p-5 mb-6">
+      <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div>
+          <h2 class="font-semibold text-gray-900">Laporan Closing</h2>
+          <p class="text-xs text-gray-400 mt-0.5">Rekap transaksi & metode pembayaran per periode</p>
+        </div>
+        <!-- Quick filter buttons -->
+        <div class="flex gap-2 flex-wrap">
+          <button v-for="f in quickFilters" :key="f.label"
+            @click="applyQuickFilter(f)"
+            :class="['btn-sm', closingMode === f.label ? 'btn-primary' : 'btn-secondary']">
+            {{ f.label }}
+          </button>
+          <button @click="closingMode = 'Custom'" :class="['btn-sm', closingMode === 'Custom' ? 'btn-primary' : 'btn-secondary']">Custom</button>
+        </div>
+      </div>
+
+      <!-- Custom date range (shown only when Custom selected) -->
+      <div v-if="closingMode === 'Custom'" class="flex gap-2 mb-4 flex-wrap">
+        <div>
+          <label class="label text-[11px]">Dari</label>
+          <input v-model="closingFrom" type="date" class="input w-auto text-xs" @change="loadClosing" />
+        </div>
+        <div>
+          <label class="label text-[11px]">Sampai</label>
+          <input v-model="closingTo" type="date" class="input w-auto text-xs" @change="loadClosing" />
+        </div>
+        <div class="flex items-end">
+          <button @click="loadClosing" class="btn-primary btn-sm">Tampilkan</button>
+        </div>
+      </div>
+
+      <!-- Period label -->
+      <p v-if="closing" class="text-xs text-gray-400 mb-3">
+        Periode: <span class="font-medium text-gray-700">{{ closing.date_from }}</span>
+        <span v-if="closing.date_from !== closing.date_to"> s/d <span class="font-medium text-gray-700">{{ closing.date_to }}</span></span>
+      </p>
+
+      <!-- Summary cards -->
+      <div v-if="closing" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div class="bg-green-50 rounded-xl p-3 text-center">
+          <p class="text-xs text-gray-400">Total Omzet</p>
+          <p class="text-lg font-bold text-green-700">{{ formatRp(closing.grand_total) }}</p>
+          <p class="text-xs text-gray-400">{{ closing.grand_count }} transaksi</p>
+        </div>
+        <div class="bg-red-50 rounded-xl p-3 text-center">
+          <p class="text-xs text-gray-400">Pengeluaran</p>
+          <p class="text-lg font-bold text-red-600">{{ formatRp(closing.total_expenses) }}</p>
+        </div>
+        <div class="bg-blue-50 rounded-xl p-3 text-center col-span-2">
+          <p class="text-xs text-gray-400">Estimasi Profit</p>
+          <p class="text-lg font-bold" :class="closing.net_profit >= 0 ? 'text-blue-700' : 'text-red-600'">
+            {{ formatRp(closing.net_profit) }}
+          </p>
+        </div>
+      </div>
+
+      <!-- Breakdown per metode bayar -->
+      <div v-if="closing?.breakdown?.length" class="overflow-x-auto">
+        <table class="table-base">
+          <thead>
+            <tr>
+              <th>Metode Bayar</th>
+              <th class="text-center">Transaksi</th>
+              <th class="text-right">Total</th>
+              <th class="text-right">%</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="b in closing.breakdown" :key="b.method">
+              <td>
+                <span :class="methodBadge(b.method)" class="text-xs font-semibold px-2 py-0.5 rounded-full">{{ b.method }}</span>
+              </td>
+              <td class="text-center text-gray-600">{{ b.count }}x</td>
+              <td class="text-right font-semibold text-gray-800">{{ formatRp(b.total) }}</td>
+              <td class="text-right text-gray-400 text-xs">
+                {{ closing.grand_total > 0 ? ((b.total / closing.grand_total) * 100).toFixed(1) : '0' }}%
+              </td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr class="border-t-2 border-gray-200">
+              <td class="font-bold text-gray-900">Total</td>
+              <td class="text-center font-bold text-gray-900">{{ closing.grand_count }}x</td>
+              <td class="text-right font-bold text-green-700">{{ formatRp(closing.grand_total) }}</td>
+              <td class="text-right text-gray-400 text-xs">100%</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div v-else-if="closing" class="text-center text-gray-300 py-8">Tidak ada transaksi pada periode ini</div>
+      <div v-else class="text-center text-gray-300 py-8">Memuat data...</div>
+    </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <!-- Revenue Chart -->
       <div class="card p-5">
@@ -34,9 +129,9 @@
         </div>
       </div>
 
-      <!-- Payment Method -->
+      <!-- Payment Method (overall) -->
       <div class="card p-5">
-        <h2 class="font-semibold text-gray-900 mb-4">Metode Pembayaran</h2>
+        <h2 class="font-semibold text-gray-900 mb-4">Metode Pembayaran (30 Hari)</h2>
         <div class="h-56">
           <Doughnut v-if="doughnutData.labels.length" :data="doughnutData" :options="donutOptions" />
         </div>
@@ -126,9 +221,47 @@ const exportFrom = ref('')
 const exportTo = ref('')
 const exporting = ref(false)
 
-const formatRp = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n)
+// Closing report state
+const closing = ref(null)
+const closingMode = ref('Hari Ini')
+const closingFrom = ref(dayjs().format('YYYY-MM-DD'))
+const closingTo = ref(dayjs().format('YYYY-MM-DD'))
+
+const quickFilters = [
+  { label: 'Hari Ini', from: () => dayjs().format('YYYY-MM-DD'), to: () => dayjs().format('YYYY-MM-DD') },
+  { label: 'Kemarin', from: () => dayjs().subtract(1, 'day').format('YYYY-MM-DD'), to: () => dayjs().subtract(1, 'day').format('YYYY-MM-DD') },
+  { label: 'Bulan Ini', from: () => dayjs().startOf('month').format('YYYY-MM-DD'), to: () => dayjs().format('YYYY-MM-DD') },
+  { label: 'Bulan Lalu', from: () => dayjs().subtract(1, 'month').startOf('month').format('YYYY-MM-DD'), to: () => dayjs().subtract(1, 'month').endOf('month').format('YYYY-MM-DD') },
+]
+
+function applyQuickFilter(f) {
+  closingMode.value = f.label
+  closingFrom.value = f.from()
+  closingTo.value = f.to()
+  loadClosing()
+}
+
+async function loadClosing() {
+  try {
+    const res = await api.get(`/api/v1/reports/closing?date_from=${closingFrom.value}&date_to=${closingTo.value}`)
+    closing.value = res.data
+  } catch {}
+}
+
+const formatRp = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0)
 
 const COLORS = ['#15803d','#2563eb','#d97706','#dc2626','#7c3aed','#0891b2']
+
+function methodBadge(method) {
+  return {
+    CASH: 'bg-green-100 text-green-700',
+    QRIS: 'bg-blue-100 text-blue-700',
+    TRANSFER: 'bg-purple-100 text-purple-700',
+    DEBIT: 'bg-orange-100 text-orange-700',
+    CREDIT: 'bg-red-100 text-red-700',
+    DEBT: 'bg-gray-100 text-gray-600',
+  }[method] || 'bg-gray-100 text-gray-600'
+}
 
 const barData = computed(() => ({
   labels: revenueData.value.map(r => dayjs(r.date).format('D/M')),
@@ -184,6 +317,10 @@ async function loadMenuPerf() {
 }
 
 onMounted(async () => {
+  const today = dayjs().format('YYYY-MM-DD')
+  closingFrom.value = today
+  closingTo.value = today
+
   const [_, payRes, invRes] = await Promise.all([
     loadRevenue(),
     api.get('/api/v1/reports/revenue/by-payment-method'),
@@ -192,5 +329,6 @@ onMounted(async () => {
   paymentData.value = payRes.data
   invSummary.value = invRes.data
   loadMenuPerf()
+  loadClosing()
 })
 </script>

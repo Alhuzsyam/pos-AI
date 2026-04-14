@@ -397,13 +397,15 @@ def _tool_add_stock(tenant_id, args, user, db):
 
 
 def _tool_expenses_summary(tenant_id, date_from, date_to, db):
+    # Use coalesce so expenses without purchase_date fall back to created_at date
+    effective_date = func.coalesce(Expense.purchase_date, func.date(Expense.created_at))
     row = db.query(
         func.sum(Expense.price).label("total"),
         func.count(Expense.id).label("count"),
     ).filter(
         Expense.tenant_id == tenant_id,
-        Expense.purchase_date >= date_from,
-        Expense.purchase_date <= date_to,
+        effective_date >= date_from,
+        effective_date <= date_to,
     ).first()
     return {"period": {"from": date_from, "to": date_to}, "total": row.total or 0, "count": row.count or 0}
 

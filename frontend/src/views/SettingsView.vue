@@ -191,6 +191,7 @@
         </label>
       </div>
 
+      <!-- Form fields — disabled saat notify off -->
       <div class="space-y-3" :class="{ 'opacity-50 pointer-events-none': !waForm.whatsapp_notify }">
         <div class="grid grid-cols-2 gap-3">
           <div>
@@ -225,12 +226,13 @@
             </select>
           </div>
         </div>
-        <div class="flex gap-2">
-          <button @click="saveWaSettings" class="btn-primary">Simpan WA Settings</button>
-          <button @click="testWhatsapp" class="btn-secondary" :disabled="testingWa">
-            {{ testingWa ? 'Mengirim...' : 'Test Kirim' }}
-          </button>
-        </div>
+      </div>
+      <!-- Tombol selalu bisa diklik, tidak ikut disabled -->
+      <div class="flex gap-2 mt-3">
+        <button @click="saveWaSettings" class="btn-primary">Simpan WA Settings</button>
+        <button @click="testWhatsapp" class="btn-secondary" :disabled="testingWa">
+          {{ testingWa ? 'Mengirim...' : 'Test Kirim' }}
+        </button>
       </div>
     </div>
 
@@ -354,11 +356,13 @@
 <script setup>
 import { reactive, ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useAppSettingsStore } from '@/stores/appSettings'
 import api from '@/composables/useApi'
 import { useToast } from 'vue-toastification'
 import { usePrinter } from '@/composables/usePrinter'
 
 const auth = useAuthStore()
+const appSettings = useAppSettingsStore()
 const toast = useToast()
 const printer = usePrinter()
 const lastPrinterName = ref(printer.getLastPrinterName())
@@ -513,6 +517,9 @@ async function saveDivSettings() {
   try {
     await api.patch('/api/v1/settings/', { divisions: divForm.divisions, watchlist_enabled: divForm.watchlist_enabled })
     toast.success('Divisi & Watchlist disimpan!')
+    // Reset appSettings so sidebar re-fetches watchlist_enabled state
+    appSettings.reset()
+    appSettings.load()
     loadSettings()
   } catch (e) {
     toast.error(e.response?.data?.detail || 'Gagal simpan')

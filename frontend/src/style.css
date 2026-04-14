@@ -2,16 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ====================== CSS VARIABLES ====================== */
+/* Format: R G B (space-separated) so Tailwind opacity modifier works */
+:root {
+  --claude-paper:   250 249 245;
+  --claude-surface: 243 240 232;
+  --claude-ink:     31 30 29;
+  --claude-graphite:61 57 41;
+  --claude-slate:   107 101 88;
+  --claude-dust:    168 161 149;
+  --claude-line:    229 225 216;
+  --claude-hairline:239 236 227;
+
+  /* Card/input background (white in light, dark in dark) */
+  --color-card: 255 255 255;
+  --color-input: 255 255 255;
+}
+
+.dark {
+  --claude-paper:   26 25 23;
+  --claude-surface: 37 35 32;
+  --claude-ink:     240 237 230;
+  --claude-graphite:217 214 204;
+  --claude-slate:   168 161 149;
+  --claude-dust:    107 101 88;
+  --claude-line:    58 55 48;
+  --claude-hairline:46 44 39;
+
+  --color-card: 37 35 32;
+  --color-input: 30 29 27;
+}
+
 @layer base {
   html {
-    background-color: #faf9f5;
+    background-color: rgb(var(--claude-paper));
   }
   body {
     @apply bg-claude-paper text-claude-graphite font-sans antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
-  /* Serif untuk heading gede — matches LoginView look */
   h1, h2 {
     @apply font-serif text-claude-ink tracking-tight;
   }
@@ -20,13 +50,14 @@
 @layer components {
   /* ====================== BUTTONS ====================== */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium text-[14px] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-claude-paper disabled:opacity-60 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium text-[14px] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-60 disabled:cursor-not-allowed;
+    @apply focus:ring-offset-claude-paper;
   }
   .btn-primary {
     @apply btn bg-brand-500 text-white hover:bg-brand-600 focus:ring-brand-400;
   }
   .btn-secondary {
-    @apply btn bg-white text-claude-graphite border border-claude-line hover:bg-claude-surface focus:ring-claude-line;
+    @apply btn bg-[rgb(var(--color-card))] text-claude-graphite border border-claude-line hover:bg-claude-surface focus:ring-claude-line;
   }
   .btn-ghost {
     @apply btn text-claude-slate hover:bg-claude-surface focus:ring-claude-line;
@@ -40,12 +71,14 @@
 
   /* ====================== CARDS ====================== */
   .card {
-    @apply bg-white rounded-xl border border-claude-line shadow-claude-sm;
+    background-color: rgb(var(--color-card));
+    @apply rounded-xl border border-claude-line shadow-claude-sm;
   }
 
   /* ====================== FORMS ====================== */
   .input {
-    @apply w-full px-3.5 py-2.5 bg-white rounded-lg border border-claude-line text-[14px] text-claude-ink placeholder-claude-dust focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition;
+    background-color: rgb(var(--color-input));
+    @apply w-full px-3.5 py-2.5 rounded-lg border border-claude-line text-[14px] text-claude-ink placeholder-claude-dust focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition;
   }
 
   .label {
@@ -57,6 +90,7 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b6558' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
     background-size: 1rem 1rem;
     appearance: none;
+    background-color: rgb(var(--color-input));
   }
 
   /* ====================== BADGES ====================== */
@@ -68,6 +102,12 @@
   .badge-yellow { @apply badge bg-[#fbf4e3] text-[#8a6518]; }
   .badge-blue   { @apply badge bg-[#eaf0f7] text-[#355784]; }
   .badge-gray   { @apply badge bg-claude-surface text-claude-slate; }
+
+  /* Dark mode badge overrides */
+  .dark .badge-green  { background-color: #1a2e1e; color: #6db87a; }
+  .dark .badge-red    { background-color: #2e1a16; color: #d87e5a; }
+  .dark .badge-yellow { background-color: #2a2316; color: #c49a3a; }
+  .dark .badge-blue   { background-color: #16213a; color: #7aabde; }
 
   /* ====================== TABLES ====================== */
   .table-base {
@@ -112,5 +152,30 @@
 /* Scrollbar — soft warm */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #e5e1d8; border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: #d4cfc1; }
+::-webkit-scrollbar-thumb { background: rgb(var(--claude-line)); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--claude-hairline)); }
+
+/* ======= DARK MODE: Tailwind hardcoded gray/white overrides =======
+   Fixes all views that use text-gray-*, bg-white, bg-gray-*, border-gray-*
+   without needing to touch each component file.
+================================================================== */
+.dark .text-gray-900  { color: rgb(var(--claude-ink)); }
+.dark .text-gray-800  { color: rgb(var(--claude-graphite)); }
+.dark .text-gray-700  { color: rgb(var(--claude-slate)); }
+.dark .text-gray-600  { color: rgb(var(--claude-slate)); }
+.dark .text-gray-500  { color: rgb(var(--claude-dust)); }
+.dark .text-gray-400  { color: rgb(var(--claude-dust)); }
+.dark .text-gray-300  { color: rgb(var(--claude-line)); }
+
+.dark .bg-white       { background-color: rgb(var(--color-card)); }
+.dark .bg-gray-50     { background-color: rgb(var(--color-input)); }
+.dark .bg-gray-100    { background-color: rgb(46 44 39); }
+.dark .bg-gray-200    { background-color: rgb(58 55 48); }
+
+.dark .border-gray-100 { border-color: rgb(var(--claude-hairline)); }
+.dark .border-gray-200 { border-color: rgb(var(--claude-line)); }
+.dark .border-gray-300 { border-color: rgb(var(--claude-line)); }
+
+/* hover variants */
+.dark .hover\:bg-gray-50:hover  { background-color: rgb(var(--color-input)); }
+.dark .hover\:bg-gray-100:hover { background-color: rgb(46 44 39); }

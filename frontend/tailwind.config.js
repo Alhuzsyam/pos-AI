@@ -1,6 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{vue,js,ts}'],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
@@ -17,18 +18,18 @@ export default {
           800: '#7a3826',
           900: '#59281b',
         },
-        // Claude paper/ink palette buat teks, border, surface.
+        // Claude paper/ink palette — backed by CSS vars so dark mode auto-switches.
         claude: {
-          paper:   '#faf9f5',  // main page background
-          surface: '#f3f0e8',  // secondary surface (cards hover, tables)
-          ink:     '#1f1e1d',  // heading ink
-          graphite:'#3d3929',  // label ink
-          slate:   '#6b6558',  // body text muted
-          dust:    '#a8a195',  // very muted
-          line:    '#e5e1d8',  // default border
-          hairline:'#efece3',  // soft separator
+          paper:   'rgb(var(--claude-paper) / <alpha-value>)',
+          surface: 'rgb(var(--claude-surface) / <alpha-value>)',
+          ink:     'rgb(var(--claude-ink) / <alpha-value>)',
+          graphite:'rgb(var(--claude-graphite) / <alpha-value>)',
+          slate:   'rgb(var(--claude-slate) / <alpha-value>)',
+          dust:    'rgb(var(--claude-dust) / <alpha-value>)',
+          line:    'rgb(var(--claude-line) / <alpha-value>)',
+          hairline:'rgb(var(--claude-hairline) / <alpha-value>)',
         },
-        surface: '#faf9f5',  // alias for backward compat
+        surface: 'rgb(var(--claude-paper) / <alpha-value>)',
       },
       fontFamily: {
         // 'serif' = display/heading; 'sans' = body/UI

@@ -180,7 +180,9 @@ async def generate_weekly_insight(
     """Generate weekly insight on-demand menggunakan API key tenant sendiri."""
     s = _get_or_create_settings(resolve_tenant_id(current_user, db), db)
 
-    if not any([s.openai_api_key, s.gemini_api_key, s.groq_api_key]):
+    has_key = any([s.openai_api_key, s.gemini_api_key, s.groq_api_key])
+    is_ollama = (s.ai_provider == "ollama" and s.ollama_host)
+    if not has_key and not is_ollama:
         raise HTTPException(
             status_code=400,
             detail="Belum ada API key terkonfigurasi. Pergi ke Settings → AI Settings untuk setup."
@@ -293,8 +295,12 @@ async def _generate_insight_background(tenant_id: int, settings: TenantSettings,
     from app.database import SessionLocal
     db = SessionLocal()
     try:
-        prompt = _build_insight_prompt(metrics, settings)
-        insight_text, action_items = await _call_ai(settings, prompt)
+        # Reload settings in this background session to avoid DetachedInstanceError
+        fresh_settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
+        if not fresh_settings:
+            return
+        prompt = _build_insight_prompt(metrics, fresh_settings)
+        insight_text, action_items = await _call_ai(fresh_settings, prompt)
 
         insight = WeeklyInsight(
             tenant_id=tenant_id,
@@ -303,7 +309,7 @@ async def _generate_insight_background(tenant_id: int, settings: TenantSettings,
             metrics=metrics,
             insight_text=insight_text,
             action_items=action_items,
-            ai_provider_used=settings.ai_provider,
+            ai_provider_used=fresh_settings.ai_provider,
         )
         db.add(insight)
 
