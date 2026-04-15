@@ -28,7 +28,7 @@
               id="username"
               v-model="form.username"
               type="text"
-              placeholder="superadmin"
+              placeholder="username"
               autocomplete="username"
               required
               class="w-full px-4 py-3 bg-white border border-[#e5e1d8] rounded-lg text-[15px] text-[#1f1e1d] placeholder-[#b8b0a3] focus:outline-none focus:border-[#c96442] focus:ring-2 focus:ring-[#c96442]/15 transition"
