@@ -49,6 +49,7 @@
         <NavGroup v-if="!collapsed" label="Analitik" />
         <NavItem to="/reports" icon="chart-bar" :label="collapsed ? '' : 'Laporan'" v-if="auth.can('manager')" />
         <NavItem to="/ai" icon="sparkles" :label="collapsed ? '' : 'AI Assistant'" />
+        <NavItem to="/twibon" icon="photograph" :label="collapsed ? '' : 'Twibon Maker'" />
 
         <NavGroup v-if="!collapsed && auth.isAdmin" label="Manajemen" />
         <NavItem to="/payroll" icon="currency-dollar" :label="collapsed ? '' : 'Gaji Karyawan'" v-if="auth.isAdmin" />
@@ -165,6 +166,7 @@
             <NavItem to="/menu" icon="menu-alt" label="Kelola Menu" v-if="auth.can('manager')" />
             <NavItem to="/reports" icon="chart-bar" label="Laporan" v-if="auth.can('manager')" />
             <NavItem to="/ai" icon="sparkles" label="AI Assistant" />
+            <NavItem to="/twibon" icon="photograph" label="Twibon Maker" />
             <NavItem to="/payroll" icon="currency-dollar" label="Gaji Karyawan" v-if="auth.isAdmin" />
             <NavItem to="/office" icon="office-pixel" label="Live Office" v-if="auth.isAdmin && appSettings.officeEnabled" />
             <NavItem to="/users" icon="users" label="Pengguna" v-if="auth.isAdmin" />

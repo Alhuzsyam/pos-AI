@@ -30,6 +30,7 @@ const router = createRouter({
         { path: 'tenants', name: 'tenants', component: () => import('@/views/TenantsView.vue'), meta: { role: 'superadmin' } },
         { path: 'watchlist', name: 'watchlist', component: () => import('@/views/WatchlistView.vue') },
         { path: 'ai', name: 'ai', component: () => import('@/views/AiView.vue') },
+        { path: 'twibon', name: 'twibon', component: () => import('@/views/TwibonView.vue') },
         { path: 'settings', name: 'settings', component: () => import('@/views/SettingsView.vue') },
       ]
     },
