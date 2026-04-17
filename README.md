@@ -180,34 +180,49 @@ docker compose build --no-cache backend
 docker compose up -d backend
 ```
 
-### `Access denied for user 'posai_user'@...`
+### Deploy di Windows Server — `entrypoint.sh` error (line ending CRLF)
 
-Ini terjadi kalau `DB_PASSWORD` di `.env` diubah setelah MySQL volume sudah
-terbuat. `MYSQL_USER` / `MYSQL_PASSWORD` cuma dipakai **sekali** pas first
-init — password lama masih ke-store di tabel `mysql.user`.
+Kalau backend langsung exit saat startup dengan error seperti:
 
-**Opsi A — nuke volume (paling bersih, data hilang):**
+```
+exec /entrypoint.sh: no such file or directory
+```
+
+atau
+
+```
+/bin/sh^M: bad interpreter
+```
+
+Penyebabnya: Git di Windows otomatis convert line ending dari **LF → CRLF**
+saat clone. Shell script di Linux container **harus** pakai LF — CRLF bikin
+interpreter-nya gagal baca file.
+
+**Fix — convert `entrypoint.sh` ke LF sebelum build:**
+
+Pakai `dos2unix` (kalau tersedia di server):
 
 ```bash
-docker compose down -v
-docker compose up -d
+dos2unix backend/entrypoint.sh
+docker compose up -d --build
 ```
 
-**Opsi B — update password manual (data tetap):**
+Atau via PowerShell:
 
-```bash
-docker exec -it posai_db mysql -uroot -p<DB_PASSWORD_BARU>
+```powershell
+(Get-Content backend\entrypoint.sh -Raw) -replace "`r`n", "`n" | Set-Content backend\entrypoint.sh -NoNewline
 ```
 
-```sql
-ALTER USER 'posai_user'@'%' IDENTIFIED BY '<DB_PASSWORD_BARU>';
-FLUSH PRIVILEGES;
-EXIT;
-```
+Atau cegah dari awal — set Git supaya tidak auto-convert line ending sebelum clone:
 
 ```bash
-docker compose restart backend
+git config --global core.autocrlf false
+git clone https://github.com/Alhuzsyam/pos-AI.git
 ```
+
+> **VS Code**: Buka `entrypoint.sh`, klik **CRLF** di status bar pojok kanan bawah → pilih **LF** → Save.
+
+---
 
 ### Login gagal 422 / 401 setelah fresh deploy
 
