@@ -10,10 +10,19 @@
 
     <!-- Filters -->
     <div class="flex gap-2 mb-4">
-      <input v-model="search" class="input max-w-xs" placeholder="Cari produk..." />
-      <button @click="lowStockOnly = !lowStockOnly" :class="['btn-sm', lowStockOnly ? 'btn-danger' : 'btn-secondary']">
+      <input v-model="search" @input="currentPage = 1" class="input max-w-xs" placeholder="Cari produk..." />
+      <button @click="toggleLowStock" :class="['btn-sm', lowStockOnly ? 'btn-danger' : 'btn-secondary']">
         {{ lowStockOnly ? '🔴 Low Stock' : 'Semua Stok' }}
       </button>
+      <div class="ml-auto flex items-center gap-2 text-sm text-gray-500">
+        <span>Tampilkan</span>
+        <select v-model="pageSize" @change="currentPage = 1" class="input py-1 w-16">
+          <option :value="10">10</option>
+          <option :value="25">25</option>
+          <option :value="50">50</option>
+        </select>
+        <span>per halaman</span>
+      </div>
     </div>
 
     <!-- Table -->
@@ -31,7 +40,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="p in filtered" :key="p.id">
+          <tr v-for="p in paginated" :key="p.id">
             <td>
               <p class="font-medium text-gray-800">{{ p.name }}</p>
               <p class="text-xs text-gray-400">{{ p.division || '-' }}</p>
@@ -53,17 +62,35 @@
               <div class="flex gap-1">
                 <button @click="openMovement(p, 'IN')" class="btn-secondary btn-sm">+ Stok</button>
                 <button @click="openMovement(p, 'OUT')" class="btn-danger btn-sm">- Stok</button>
+                <button @click="openEdit(p)" class="btn-sm border border-blue-200 text-blue-500 hover:bg-blue-50 rounded-lg px-2 transition-colors" title="Edit produk">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </button>
                 <button @click="confirmDelete(p)" class="btn-sm border border-red-200 text-red-500 hover:bg-red-50 rounded-lg px-2 transition-colors" title="Hapus produk">
                   <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                 </button>
               </div>
             </td>
           </tr>
-          <tr v-if="!filtered.length">
+          <tr v-if="!paginated.length">
             <td colspan="7" class="text-center text-gray-300 py-10">Tidak ada produk</td>
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <!-- Pagination -->
+    <div v-if="totalPages > 1" class="flex items-center justify-between mt-4 text-sm text-gray-500">
+      <span>Menampilkan {{ (currentPage - 1) * pageSize + 1 }}–{{ Math.min(currentPage * pageSize, filtered.length) }} dari {{ filtered.length }} produk</span>
+      <div class="flex items-center gap-1">
+        <button @click="currentPage = 1" :disabled="currentPage === 1" class="btn-sm btn-secondary px-2 disabled:opacity-40">«</button>
+        <button @click="currentPage--" :disabled="currentPage === 1" class="btn-sm btn-secondary px-2 disabled:opacity-40">‹</button>
+        <template v-for="p in pageNumbers" :key="p">
+          <span v-if="p === '...'" class="px-2 text-gray-400">...</span>
+          <button v-else @click="currentPage = p" :class="['btn-sm px-3 rounded-lg', p === currentPage ? 'btn-primary' : 'btn-secondary']">{{ p }}</button>
+        </template>
+        <button @click="currentPage++" :disabled="currentPage === totalPages" class="btn-sm btn-secondary px-2 disabled:opacity-40">›</button>
+        <button @click="currentPage = totalPages" :disabled="currentPage === totalPages" class="btn-sm btn-secondary px-2 disabled:opacity-40">»</button>
+      </div>
     </div>
 
     <!-- Add Product Modal -->
@@ -84,6 +111,29 @@
           <div class="flex gap-2 pt-2">
             <button type="submit" class="btn-primary flex-1">Simpan</button>
             <button type="button" @click="showModal = false" class="btn-secondary flex-1">Batal</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Edit Product Modal -->
+    <div v-if="editTarget" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+      <div class="card p-6 w-full max-w-md">
+        <h2 class="font-serif text-[22px] text-claude-ink mb-5">Edit Produk</h2>
+        <form @submit.prevent="updateProduct" class="space-y-3">
+          <div><label class="label">Nama</label><input v-model="editForm.name" class="input" required /></div>
+          <div><label class="label">SKU</label><input v-model="editForm.sku" class="input" placeholder="Opsional" /></div>
+          <div class="grid grid-cols-2 gap-2">
+            <div><label class="label">Stok Saat Ini</label><input v-model.number="editForm.current_stock" type="number" class="input" /></div>
+            <div><label class="label">Unit</label><input v-model="editForm.unit" class="input" placeholder="pcs, kg, liter" /></div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div><label class="label">Min Stok</label><input v-model.number="editForm.min_stock_level" type="number" class="input" /></div>
+            <div><label class="label">Divisi</label><input v-model="editForm.division" class="input" placeholder="Bar / Kitchen" /></div>
+          </div>
+          <div class="flex gap-2 pt-2">
+            <button type="submit" class="btn-primary flex-1" :disabled="saving">{{ saving ? 'Menyimpan...' : 'Simpan' }}</button>
+            <button type="button" @click="editTarget = null" class="btn-secondary flex-1">Batal</button>
           </div>
         </form>
       </div>
@@ -139,6 +189,13 @@ const form = reactive({ name: '', sku: '', current_stock: 0, unit: 'pcs', min_st
 const movModal = reactive({ show: false, product: null, type: 'IN', qty: 1, notes: '' })
 const deleteTarget = ref(null)
 const deleting = ref(false)
+const editTarget = ref(null)
+const editForm = reactive({ name: '', sku: '', current_stock: 0, unit: '', min_stock_level: 0, division: '' })
+const saving = ref(false)
+
+// Pagination
+const currentPage = ref(1)
+const pageSize = ref(10)
 
 const filtered = computed(() =>
   products.value.filter(p =>
@@ -146,6 +203,34 @@ const filtered = computed(() =>
     (!lowStockOnly.value || p.current_stock <= p.min_stock_level)
   )
 )
+
+const totalPages = computed(() => Math.ceil(filtered.value.length / pageSize.value))
+
+const paginated = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return filtered.value.slice(start, start + pageSize.value)
+})
+
+const pageNumbers = computed(() => {
+  const total = totalPages.value
+  const cur = currentPage.value
+  const pages = []
+  if (total <= 7) {
+    for (let i = 1; i <= total; i++) pages.push(i)
+  } else {
+    pages.push(1)
+    if (cur > 3) pages.push('...')
+    for (let i = Math.max(2, cur - 1); i <= Math.min(total - 1, cur + 1); i++) pages.push(i)
+    if (cur < total - 2) pages.push('...')
+    pages.push(total)
+  }
+  return pages
+})
+
+function toggleLowStock() {
+  lowStockOnly.value = !lowStockOnly.value
+  currentPage.value = 1
+}
 
 async function loadProducts() {
   const res = await api.get('/api/v1/inventory/products')
@@ -160,6 +245,32 @@ async function addProduct() {
     loadProducts()
   } catch (e) {
     toast.error(e.response?.data?.detail || 'Gagal tambah produk')
+  }
+}
+
+function openEdit(product) {
+  editTarget.value = product
+  Object.assign(editForm, {
+    name: product.name,
+    sku: product.sku || '',
+    current_stock: product.current_stock,
+    unit: product.unit,
+    min_stock_level: product.min_stock_level,
+    division: product.division || '',
+  })
+}
+
+async function updateProduct() {
+  saving.value = true
+  try {
+    await api.put(`/api/v1/inventory/products/${editTarget.value.id}`, editForm)
+    toast.success('Produk diperbarui')
+    editTarget.value = null
+    loadProducts()
+  } catch (e) {
+    toast.error(e.response?.data?.detail || 'Gagal update produk')
+  } finally {
+    saving.value = false
   }
 }
 
