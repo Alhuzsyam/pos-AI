@@ -98,12 +98,23 @@ def build_daily_report(tenant_id: int, db: Session) -> str:
     # Target capaian
     if target_daily > 0:
         pct = (today_revenue / target_daily) * 100
-        bar_filled = int(pct / 10)
-        bar_filled = min(bar_filled, 10)
+        pct_capped = min(pct, 100)
+        bar_filled = int(pct_capped / 10)
         progress_bar = "█" * bar_filled + "░" * (10 - bar_filled)
-        status_icon = "✅" if pct >= 100 else ("⚡" if pct >= 70 else "🔴")
-        lines.append(f"🎯 *Target:* {pct:.0f}% dari Rp {target_daily:,.0f}")
-        lines.append(f"  {status_icon} [{progress_bar}] {pct:.0f}%")
+        if pct >= 100:
+            status_icon = "✅"
+            keterangan = "🚀 Target tercapai!"
+        elif pct >= 70:
+            status_icon = "⚡"
+            sisa = target_daily - today_revenue
+            keterangan = f"💡 Kurang Rp {sisa:,.0f} lagi"
+        else:
+            status_icon = "🔴"
+            sisa = target_daily - today_revenue
+            keterangan = f"💡 Kurang Rp {sisa:,.0f} lagi"
+        lines.append(f"🎯 *Target Harian:* Rp {target_daily:,.0f}")
+        lines.append(f"   {status_icon} [{progress_bar}] {pct:.1f}%")
+        lines.append(f"   {keterangan}")
 
     if top_menu:
         lines.append("")

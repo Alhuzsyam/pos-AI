@@ -20,15 +20,27 @@
         <p class="text-[11px] text-claude-dust mt-0.5 mb-2 uppercase tracking-wide">{{ item.category || item.division }}</p>
         <p class="text-brand-600 font-semibold text-[15px]">{{ formatRp(item.price) }}</p>
 
-        <!-- Recipes/Ingredients preview -->
-        <div v-if="item.recipes && item.recipes.length" class="mt-2 pt-2 border-t border-claude-line">
-          <p class="text-[11px] text-claude-dust uppercase tracking-wide mb-1">Bahan Baku:</p>
-          <div v-for="r in item.recipes" :key="r.id" class="text-[12px] text-claude-slate">
-            {{ r.product_name }} ({{ r.amount_needed }} {{ r.product_unit }})
+        <!-- Recipes/Ingredients preview (collapsible) -->
+        <div class="mt-2 pt-2 border-t border-claude-line">
+          <button
+            v-if="item.recipes && item.recipes.length"
+            @click="toggleRecipes(item.id)"
+            class="flex items-center gap-1 text-[11px] text-claude-dust uppercase tracking-wide hover:text-claude-ink transition-colors"
+          >
+            <svg
+              :class="['w-3 h-3 transition-transform duration-200', expandedRecipes.has(item.id) ? 'rotate-90' : '']"
+              fill="none" viewBox="0 0 24 24" stroke="currentColor"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+            </svg>
+            Bahan Baku ({{ item.recipes.length }})
+          </button>
+          <p v-else class="text-[11px] text-claude-dust italic">Belum ada resep</p>
+          <div v-if="expandedRecipes.has(item.id)" class="mt-1.5 space-y-0.5">
+            <div v-for="r in item.recipes" :key="r.id" class="text-[12px] text-claude-slate">
+              {{ r.product_name }} ({{ r.amount_needed }} {{ r.product_unit }})
+            </div>
           </div>
-        </div>
-        <div v-else class="mt-2 pt-2 border-t border-claude-line">
-          <p class="text-[11px] text-claude-dust italic">Belum ada resep</p>
         </div>
 
         <div class="flex gap-2 mt-3">
@@ -125,8 +137,18 @@ const editItem = ref(null)
 const form = reactive({ name: '', price: 0, division: 'Bar', category: '', description: '', recipes: [] })
 const deleteTarget = ref(null)
 const deleting = ref(false)
+const expandedRecipes = ref(new Set())
 
 const formatRp = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n)
+
+function toggleRecipes(id) {
+  if (expandedRecipes.value.has(id)) {
+    expandedRecipes.value.delete(id)
+  } else {
+    expandedRecipes.value.add(id)
+  }
+  expandedRecipes.value = new Set(expandedRecipes.value)
+}
 
 function divIcon(div) {
   const icons = { Kitchen: '🍳', Bar: '☕', Titipan: '📦' }

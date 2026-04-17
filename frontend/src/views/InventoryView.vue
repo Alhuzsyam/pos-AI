@@ -123,9 +123,8 @@
         <form @submit.prevent="updateProduct" class="space-y-3">
           <div><label class="label">Nama</label><input v-model="editForm.name" class="input" required /></div>
           <div><label class="label">SKU</label><input v-model="editForm.sku" class="input" placeholder="Opsional" /></div>
-          <div class="grid grid-cols-2 gap-2">
-            <div><label class="label">Stok Saat Ini</label><input v-model.number="editForm.current_stock" type="number" class="input" /></div>
-            <div><label class="label">Unit</label><input v-model="editForm.unit" class="input" placeholder="pcs, kg, liter" /></div>
+          <div>
+            <label class="label">Unit</label><input v-model="editForm.unit" class="input" placeholder="pcs, kg, liter" />
           </div>
           <div class="grid grid-cols-2 gap-2">
             <div><label class="label">Min Stok</label><input v-model.number="editForm.min_stock_level" type="number" class="input" /></div>
@@ -190,7 +189,7 @@ const movModal = reactive({ show: false, product: null, type: 'IN', qty: 1, note
 const deleteTarget = ref(null)
 const deleting = ref(false)
 const editTarget = ref(null)
-const editForm = reactive({ name: '', sku: '', current_stock: 0, unit: '', min_stock_level: 0, division: '' })
+const editForm = reactive({ name: '', sku: '', unit: '', min_stock_level: 0, division: '' })
 const saving = ref(false)
 
 // Pagination
@@ -253,7 +252,6 @@ function openEdit(product) {
   Object.assign(editForm, {
     name: product.name,
     sku: product.sku || '',
-    current_stock: product.current_stock,
     unit: product.unit,
     min_stock_level: product.min_stock_level,
     division: product.division || '',
@@ -263,7 +261,7 @@ function openEdit(product) {
 async function updateProduct() {
   saving.value = true
   try {
-    await api.put(`/api/v1/inventory/products/${editTarget.value.id}`, editForm)
+    await api.patch(`/api/v1/inventory/products/${editTarget.value.id}`, editForm)
     toast.success('Produk diperbarui')
     editTarget.value = null
     loadProducts()
