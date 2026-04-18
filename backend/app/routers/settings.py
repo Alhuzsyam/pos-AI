@@ -42,6 +42,7 @@ class SettingsUpdate(BaseModel):
     whatsapp_schedule_hour: Optional[int] = None
     whatsapp_schedule_minute: Optional[int] = None
     divisions: Optional[list] = None
+    inventory_types: Optional[list] = None
     watchlist_enabled: Optional[bool] = None
     office_enabled: Optional[bool] = None
     printer_name: Optional[str] = None
@@ -100,6 +101,7 @@ def get_settings(
         "whatsapp_schedule_hour": s.whatsapp_schedule_hour,
         "whatsapp_schedule_minute": s.whatsapp_schedule_minute,
         "divisions": s.divisions or ["Bar", "Kitchen", "Titipan"],
+        "inventory_types": s.inventory_types or ["Makanan", "Minuman", "Bumbu", "Kemasan", "Lainnya"],
         "watchlist_enabled": s.watchlist_enabled if s.watchlist_enabled is not None else True,
         "office_enabled": s.office_enabled if s.office_enabled is not None else True,
         "printer_name": s.printer_name,

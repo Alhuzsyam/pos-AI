@@ -48,6 +48,7 @@
             <th>Stok</th>
             <th>Unit</th>
             <th>Min</th>
+            <th>Jenis</th>
             <th>Status</th>
             <th></th>
           </tr>
@@ -67,6 +68,12 @@
             <td class="text-gray-500">{{ p.unit }}</td>
             <td class="text-gray-400">{{ p.min_stock_level }}</td>
             <td>
+              <span v-if="p.division" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                {{ p.division }}
+              </span>
+              <span v-else class="text-gray-300 text-xs">—</span>
+            </td>
+            <td>
               <span :class="p.current_stock === 0 ? 'badge-red' : p.current_stock <= p.min_stock_level ? 'badge-yellow' : 'badge-green'">
                 {{ p.current_stock === 0 ? 'Habis' : p.current_stock <= p.min_stock_level ? 'Rendah' : 'OK' }}
               </span>
@@ -85,7 +92,7 @@
             </td>
           </tr>
           <tr v-if="!paginated.length">
-            <td colspan="7" class="text-center text-gray-300 py-10">Tidak ada produk</td>
+            <td colspan="8" class="text-center text-gray-300 py-10">Tidak ada produk</td>
           </tr>
         </tbody>
       </table>
@@ -119,7 +126,13 @@
           </div>
           <div class="grid grid-cols-2 gap-2">
             <div><label class="label">Min Stok</label><input v-model.number="form.min_stock_level" type="number" class="input" /></div>
-            <div><label class="label">Divisi</label><input v-model="form.division" class="input" placeholder="Bar / Kitchen" /></div>
+            <div>
+              <label class="label">Jenis</label>
+              <select v-model="form.division" class="input">
+                <option value="">— Pilih Jenis —</option>
+                <option v-for="t in inventoryTypes" :key="t" :value="t">{{ t }}</option>
+              </select>
+            </div>
           </div>
           <div class="flex gap-2 pt-2">
             <button type="submit" class="btn-primary flex-1">Simpan</button>
@@ -141,7 +154,13 @@
           </div>
           <div class="grid grid-cols-2 gap-2">
             <div><label class="label">Min Stok</label><input v-model.number="editForm.min_stock_level" type="number" class="input" /></div>
-            <div><label class="label">Divisi</label><input v-model="editForm.division" class="input" placeholder="Bar / Kitchen" /></div>
+            <div>
+              <label class="label">Jenis</label>
+              <select v-model="editForm.division" class="input">
+                <option value="">— Pilih Jenis —</option>
+                <option v-for="t in inventoryTypes" :key="t" :value="t">{{ t }}</option>
+              </select>
+            </div>
           </div>
           <div class="flex gap-2 pt-2">
             <button type="submit" class="btn-primary flex-1" :disabled="saving">{{ saving ? 'Menyimpan...' : 'Simpan' }}</button>
@@ -291,9 +310,10 @@ import api from '@/composables/useApi'
 import { useToast } from 'vue-toastification'
 import { usePrinter } from '@/composables/usePrinter'
 
-const toast   = useToast()
-const printer = usePrinter()
-const products = ref([])
+const toast          = useToast()
+const printer        = usePrinter()
+const products       = ref([])
+const inventoryTypes = ref(['Makanan', 'Minuman', 'Bumbu', 'Kemasan', 'Lainnya'])
 const search = ref('')
 const lowStockOnly = ref(false)
 const showModal = ref(false)
@@ -476,5 +496,13 @@ async function doPrint() {
   }
 }
 
-onMounted(loadProducts)
+onMounted(async () => {
+  const [, settingsRes] = await Promise.all([
+    loadProducts(),
+    api.get('/api/v1/settings/').catch(() => null),
+  ])
+  if (settingsRes?.data?.inventory_types?.length) {
+    inventoryTypes.value = settingsRes.data.inventory_types
+  }
+})
 </script>

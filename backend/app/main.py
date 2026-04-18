@@ -14,10 +14,38 @@ from app.routers import settings as settings_router
 settings = get_settings()
 
 
+def _run_migrations():
+    """Jalankan ALTER TABLE untuk kolom baru yang belum ada di DB lama."""
+    from sqlalchemy import text
+    import logging
+    log = logging.getLogger("migrations")
+    pending = [
+        ("tenant_settings", "inventory_types",
+         "ALTER TABLE tenant_settings ADD COLUMN inventory_types JSON DEFAULT NULL"),
+    ]
+    with engine.connect() as conn:
+        for table, column, ddl in pending:
+            try:
+                row = conn.execute(text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = :t AND COLUMN_NAME = :c"
+                ), {"t": table, "c": column}).scalar()
+                if row == 0:
+                    conn.execute(text(ddl))
+                    conn.commit()
+                    log.info(f"Migration OK: {table}.{column}")
+            except Exception as e:
+                log.warning(f"Migration skip {table}.{column}: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Buat semua tabel kalau belum ada
     Base.metadata.create_all(bind=engine)
+
+    # Migrasi kolom baru (idempotent, aman dijalankan berulang)
+    _run_migrations()
 
     # Start WhatsApp scheduler
     from app.services.scheduler import start_scheduler, stop_scheduler

@@ -33,8 +33,11 @@ class TenantSettings(Base):
     business_description = Column(Text, nullable=True)
     target_daily_revenue = Column(Integer, default=0)       # target omzet per hari (Rp)
 
-    # Divisions (dynamic - custom per tenant)
+    # Divisions (dynamic - custom per tenant, untuk menu/POS)
     divisions = Column(JSON, default=lambda: ["Bar", "Kitchen", "Titipan"])
+
+    # Inventory types (dynamic - custom per tenant, untuk pengelompokan laporan WA)
+    inventory_types = Column(JSON, default=lambda: ["Makanan", "Minuman", "Bumbu", "Kemasan", "Lainnya"])
 
     # Watchlist / KDS mode
     watchlist_enabled = Column(Boolean, default=True)

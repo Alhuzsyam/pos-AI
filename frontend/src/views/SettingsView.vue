@@ -278,7 +278,7 @@
 
     <!-- Divisions & Watchlist -->
     <div class="card p-5">
-      <h2 class="font-semibold text-gray-900 mb-4">Divisi & Watchlist</h2>
+      <h2 class="font-semibold text-gray-900 mb-4">Divisi, Inventory & Watchlist</h2>
       <div class="space-y-4">
         <div>
           <label class="label">Divisi Menu</label>
@@ -295,6 +295,24 @@
             <button type="button" @click="addDivision" class="btn-secondary btn-sm">Tambah</button>
           </div>
         </div>
+
+        <!-- Jenis Inventory -->
+        <div class="border-t pt-4">
+          <label class="label">Jenis Inventory</label>
+          <p class="text-xs text-gray-400 mb-2">Kategori bahan baku — dipakai di Inventory & laporan WhatsApp per jenis</p>
+          <div class="flex flex-wrap gap-2 mb-2">
+            <span v-for="(t, i) in divForm.inventory_types" :key="i"
+              class="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1 rounded-full text-sm font-medium">
+              {{ t }}
+              <button type="button" @click="divForm.inventory_types.splice(i, 1)" class="text-amber-400 hover:text-red-600 ml-1">✕</button>
+            </span>
+          </div>
+          <div class="flex gap-2">
+            <input v-model="newInventoryType" class="input flex-1" placeholder="Jenis baru (misal: Bumbu, Minuman...)" @keydown.enter.prevent="addInventoryType" />
+            <button type="button" @click="addInventoryType" class="btn-secondary btn-sm">Tambah</button>
+          </div>
+        </div>
+
         <div class="flex items-center justify-between pt-2 border-t">
           <div>
             <p class="text-sm font-medium text-gray-800">Watchlist / KDS</p>
@@ -407,8 +425,9 @@ const waForm = reactive({ whatsapp_notify: false, waha_url: 'http://waha:3000', 
 const showChatIdInfo = ref(false)
 const testingWa = ref(false)
 const pwForm = reactive({ old_password: '', new_password: '' })
-const divForm = reactive({ divisions: ['Bar', 'Kitchen', 'Titipan'], watchlist_enabled: true, office_enabled: true })
+const divForm = reactive({ divisions: ['Bar', 'Kitchen', 'Titipan'], inventory_types: ['Makanan', 'Minuman', 'Bumbu', 'Kemasan', 'Lainnya'], watchlist_enabled: true, office_enabled: true })
 const newDivision = ref('')
+const newInventoryType = ref('')
 
 const providers = [
   { value: 'openai', label: 'OpenAI' },
@@ -449,6 +468,7 @@ async function loadSettings() {
 
   // Divisions & Watchlist
   divForm.divisions = sRes.data.divisions || ['Bar', 'Kitchen', 'Titipan']
+  divForm.inventory_types = sRes.data.inventory_types || ['Makanan', 'Minuman', 'Bumbu', 'Kemasan', 'Lainnya']
   divForm.watchlist_enabled = sRes.data.watchlist_enabled ?? true
   divForm.office_enabled = sRes.data.office_enabled ?? true
 
@@ -544,9 +564,22 @@ function addDivision() {
   newDivision.value = ''
 }
 
+function addInventoryType() {
+  const t = newInventoryType.value.trim()
+  if (!t) return
+  if (divForm.inventory_types.includes(t)) { toast.error('Jenis sudah ada'); return }
+  divForm.inventory_types.push(t)
+  newInventoryType.value = ''
+}
+
 async function saveDivSettings() {
   try {
-    await api.patch('/api/v1/settings/', { divisions: divForm.divisions, watchlist_enabled: divForm.watchlist_enabled, office_enabled: divForm.office_enabled })
+    await api.patch('/api/v1/settings/', {
+      divisions: divForm.divisions,
+      inventory_types: divForm.inventory_types,
+      watchlist_enabled: divForm.watchlist_enabled,
+      office_enabled: divForm.office_enabled,
+    })
     toast.success('Divisi & Watchlist disimpan!')
     // Reset appSettings so sidebar re-fetches watchlist_enabled state
     appSettings.reset()
