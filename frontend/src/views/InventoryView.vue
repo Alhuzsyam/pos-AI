@@ -495,7 +495,7 @@ async function connectBTPrinter() {
 }
 
 async function doPrint() {
-  const items = printList.value.filter(p => p.toBuy > 0)
+  const items = displayedPrintList.value.filter(p => p.toBuy > 0)
   if (!items.length) return
 
   if (!printer.pairedDevice.value) {
