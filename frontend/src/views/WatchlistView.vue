@@ -1,20 +1,54 @@
 <template>
   <div class="p-6 max-w-7xl mx-auto">
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center justify-between mb-3">
       <div>
         <h1 class="page-title">Watchlist / KDS</h1>
         <p class="page-subtitle">Kitchen Display System - Monitor pesanan</p>
       </div>
-      <div class="flex gap-2 flex-wrap">
-        <button v-for="d in divisions" :key="d"
+      <div class="flex items-center gap-2 flex-wrap">
+        <button v-for="d in activeDivisions" :key="d"
           @click="activeTab = d.toLowerCase()" :class="tabClass(d.toLowerCase())" class="relative">
           {{ d }}
           <span v-if="counts[d.toLowerCase()]" class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center">{{ counts[d.toLowerCase()] }}</span>
         </button>
-        <button @click="activeTab = 'waiter'" :class="tabClass('waiter')" class="relative">
+        <button v-if="showWaiter" @click="activeTab = 'waiter'" :class="tabClass('waiter')" class="relative">
           Waiter
           <span v-if="counts.waiter" class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center">{{ counts.waiter }}</span>
         </button>
+        <!-- Settings gear -->
+        <button @click="openWatchlistSettings"
+          :class="['p-2 rounded-lg border transition-colors', showSettings ? 'bg-brand-50 border-brand-300 text-brand-700' : 'border-gray-200 text-gray-400 hover:bg-gray-50']"
+          title="Atur divisi yang ditampilkan">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Inline settings panel -->
+    <div v-if="showSettings" class="card p-4 mb-5 border-brand-200">
+      <p class="text-sm font-semibold text-gray-800 mb-3">Pilih divisi yang ditampilkan di Watchlist</p>
+      <div class="flex flex-wrap gap-2 mb-4">
+        <label v-for="d in allDivisions" :key="d"
+          class="flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer transition-all select-none"
+          :class="watchlistSelected.includes(d) ? 'bg-brand-700 border-brand-700 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-brand-400'">
+          <input type="checkbox" :value="d" v-model="watchlistSelected" class="hidden" />
+          {{ d }}
+        </label>
+        <label
+          class="flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer transition-all select-none"
+          :class="watchlistSelected.includes('Waiter') ? 'bg-brand-700 border-brand-700 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-brand-400'">
+          <input type="checkbox" value="Waiter" v-model="watchlistSelected" class="hidden" />
+          Waiter
+        </label>
+      </div>
+      <div class="flex gap-2">
+        <button @click="saveWatchlistSettings" :disabled="savingSettings" class="btn-primary btn-sm">
+          {{ savingSettings ? 'Menyimpan...' : 'Simpan' }}
+        </button>
+        <button @click="showSettings = false" class="btn-secondary btn-sm">Batal</button>
       </div>
     </div>
 
@@ -76,8 +110,13 @@ import api from '@/composables/useApi'
 import { useToast } from 'vue-toastification'
 
 const toast = useToast()
-const divisions = ref(['Bar', 'Kitchen'])
-const activeTab = ref('bar')
+const allDivisions = ref([])          // semua divisi dari settings
+const watchlistSelected = ref([])     // yg dipilih (termasuk 'Waiter')
+const activeDivisions = computed(() => watchlistSelected.value.filter(d => d !== 'Waiter'))
+const showWaiter = computed(() => watchlistSelected.value.includes('Waiter'))
+const showSettings = ref(false)
+const savingSettings = ref(false)
+const activeTab = ref('')
 const orders = ref([])
 const counts = ref({})
 let pollInterval = null
@@ -107,7 +146,7 @@ const filteredOrders = computed(() => {
       .map(o => ({ ...o, items: o.items.filter(i => i.status === 'PREPARED') }))
   }
   // Division tab — match by name (case-insensitive)
-  const div = divisions.value.find(d => d.toLowerCase() === activeTab.value) || activeTab.value
+  const div = activeDivisions.value.find(d => d.toLowerCase() === activeTab.value) || activeTab.value
   return orders.value.filter(o => o.items.some(i => i.division === div && i.status === 'PENDING'))
     .map(o => ({ ...o, items: o.items.filter(i => i.division === div && i.status === 'PENDING') }))
 })
@@ -148,7 +187,7 @@ async function markDelivered(itemId) {
 }
 
 async function prepareAll(saleId) {
-  const div = divisions.value.find(d => d.toLowerCase() === activeTab.value) || activeTab.value
+  const div = activeDivisions.value.find(d => d.toLowerCase() === activeTab.value) || activeTab.value
   try {
     await api.put(`/api/v1/queue/order/${saleId}/prepare-all?division=${div}`)
     toast.success('Semua item selesai!')
@@ -188,14 +227,54 @@ function statusBadge(status) {
   }[status] || 'bg-gray-100 text-gray-500'
 }
 
+const LS_WL = 'watchlist_divisions_v1'
+
 async function loadDivisions() {
   try {
     const res = await api.get('/api/v1/settings/')
     const divs = res.data.divisions || ['Bar', 'Kitchen', 'Titipan']
-    // Filter out non-watchlist divisions if needed, keep all for now
-    divisions.value = divs
-    activeTab.value = divs[0]?.toLowerCase() || 'bar'
+    allDivisions.value = divs
+    const allOpts = [...divs, 'Waiter']
+
+    // localStorage takes priority → backend fallback → semua + Waiter
+    const raw = localStorage.getItem(LS_WL)
+    const local = raw ? JSON.parse(raw).filter(d => allOpts.includes(d)) : null
+    const backend = res.data.watchlist_divisions?.length
+      ? res.data.watchlist_divisions.filter(d => allOpts.includes(d))
+      : null
+    watchlistSelected.value = local?.length ? local : backend?.length ? backend : [...allOpts]
+
+    const first = watchlistSelected.value[0]
+    activeTab.value = first === 'Waiter' ? 'waiter' : first?.toLowerCase() || divs[0]?.toLowerCase() || 'bar'
   } catch {}
+}
+
+function openWatchlistSettings() {
+  // Reset ke state aktif saat ini sebelum buka panel
+  watchlistSelected.value = [
+    ...activeDivisions.value,
+    ...(showWaiter.value ? ['Waiter'] : []),
+  ]
+  showSettings.value = !showSettings.value
+}
+
+async function saveWatchlistSettings() {
+  savingSettings.value = true
+  try {
+    localStorage.setItem(LS_WL, JSON.stringify(watchlistSelected.value))
+    showSettings.value = false
+    // Pastikan activeTab masih valid
+    const first = watchlistSelected.value[0]
+    const newTab = first === 'Waiter' ? 'waiter' : first?.toLowerCase() || 'bar'
+    if (!watchlistSelected.value.some(d => d.toLowerCase() === activeTab.value) && activeTab.value !== 'waiter') {
+      activeTab.value = newTab
+    }
+    toast.success('Pengaturan watchlist disimpan!')
+    // Sync ke backend (best-effort)
+    api.patch('/api/v1/settings/', { watchlist_divisions: watchlistSelected.value }).catch(() => {})
+  } finally {
+    savingSettings.value = false
+  }
 }
 
 onMounted(async () => {

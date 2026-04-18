@@ -313,6 +313,34 @@
           </div>
         </div>
 
+        <!-- Watchlist divisions toggle -->
+        <div class="border-t pt-4">
+          <label class="label">Divisi di Watchlist / KDS</label>
+          <p class="text-xs text-gray-400 mb-2">Pilih divisi yang tampil sebagai tab di halaman Watchlist</p>
+          <div class="flex flex-wrap gap-2">
+            <label v-for="d in [...divForm.divisions, 'Waiter']" :key="d"
+              class="flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer transition-all select-none text-sm font-medium"
+              :class="divForm.watchlist_divisions.includes(d) ? 'bg-brand-700 border-brand-700 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-brand-400'">
+              <input type="checkbox" :value="d" v-model="divForm.watchlist_divisions" class="hidden" />
+              {{ d }}
+            </label>
+          </div>
+        </div>
+
+        <!-- POS filter divisions toggle -->
+        <div class="border-t pt-4">
+          <label class="label">Divisi di Filter POS / Kasir</label>
+          <p class="text-xs text-gray-400 mb-2">Pilih divisi yang tampil sebagai tab filter di halaman Kasir</p>
+          <div class="flex flex-wrap gap-2">
+            <label v-for="d in divForm.divisions" :key="d"
+              class="flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer transition-all select-none text-sm font-medium"
+              :class="divForm.pos_divisions.includes(d) ? 'bg-brand-700 border-brand-700 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-brand-400'">
+              <input type="checkbox" :value="d" v-model="divForm.pos_divisions" class="hidden" />
+              {{ d }}
+            </label>
+          </div>
+        </div>
+
         <div class="flex items-center justify-between pt-2 border-t">
           <div>
             <p class="text-sm font-medium text-gray-800">Watchlist / KDS</p>
@@ -425,7 +453,7 @@ const waForm = reactive({ whatsapp_notify: false, waha_url: 'http://waha:3000', 
 const showChatIdInfo = ref(false)
 const testingWa = ref(false)
 const pwForm = reactive({ old_password: '', new_password: '' })
-const divForm = reactive({ divisions: ['Bar', 'Kitchen', 'Titipan'], inventory_types: ['Makanan', 'Minuman', 'Bumbu', 'Kemasan', 'Lainnya'], watchlist_enabled: true, office_enabled: true })
+const divForm = reactive({ divisions: ['Bar', 'Kitchen', 'Titipan'], inventory_types: ['Makanan', 'Minuman', 'Bumbu', 'Kemasan', 'Lainnya'], watchlist_enabled: true, office_enabled: true, watchlist_divisions: [], pos_divisions: [] })
 const newDivision = ref('')
 const newInventoryType = ref('')
 
@@ -471,6 +499,8 @@ async function loadSettings() {
   divForm.inventory_types = sRes.data.inventory_types || ['Makanan', 'Minuman', 'Bumbu', 'Kemasan', 'Lainnya']
   divForm.watchlist_enabled = sRes.data.watchlist_enabled ?? true
   divForm.office_enabled = sRes.data.office_enabled ?? true
+  divForm.watchlist_divisions = sRes.data.watchlist_divisions?.length ? sRes.data.watchlist_divisions : [...divForm.divisions, 'Waiter']
+  divForm.pos_divisions = sRes.data.pos_divisions?.length ? sRes.data.pos_divisions : [...divForm.divisions]
 
   // WA settings
   waForm.whatsapp_notify = sRes.data.whatsapp_notify || false
@@ -579,6 +609,8 @@ async function saveDivSettings() {
       inventory_types: divForm.inventory_types,
       watchlist_enabled: divForm.watchlist_enabled,
       office_enabled: divForm.office_enabled,
+      watchlist_divisions: divForm.watchlist_divisions,
+      pos_divisions: divForm.pos_divisions,
     })
     toast.success('Divisi & Watchlist disimpan!')
     // Reset appSettings so sidebar re-fetches watchlist_enabled state

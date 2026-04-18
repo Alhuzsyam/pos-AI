@@ -8,18 +8,48 @@
       <!-- Search + Tab Filter -->
       <div class="p-3 md:p-4 border-b border-gray-100 space-y-2">
         <input v-model="search" class="input w-full" placeholder="Cari menu..." />
-        <div class="flex gap-1.5 overflow-x-auto pb-0.5" style="scrollbar-width:none;-webkit-overflow-scrolling:touch">
-          <button
-            @click="filterDiv = ''"
-            :class="['flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all',
-              filterDiv === '' ? 'bg-brand-700 text-white border-brand-700' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400']"
-          >Semua</button>
-          <button
-            v-for="d in divisions" :key="d"
-            @click="filterDiv = d"
-            :class="['flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all',
-              filterDiv === d ? 'bg-brand-700 text-white border-brand-700' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400']"
-          ><span class="mr-1">{{ divIcon(d) }}</span>{{ d }}</button>
+        <div class="flex items-center gap-1.5">
+          <div class="flex gap-1.5 overflow-x-auto pb-0.5 flex-1" style="scrollbar-width:none;-webkit-overflow-scrolling:touch">
+            <button
+              @click="filterDiv = ''"
+              :class="['flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all',
+                filterDiv === '' ? 'bg-brand-700 text-white border-brand-700' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400']"
+            >Semua</button>
+            <button
+              v-for="d in divisions" :key="d"
+              @click="filterDiv = d"
+              :class="['flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all',
+                filterDiv === d ? 'bg-brand-700 text-white border-brand-700' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400']"
+            ><span class="mr-1">{{ divIcon(d) }}</span>{{ d }}</button>
+          </div>
+          <!-- Settings gear -->
+          <button @click="openDivSettings"
+            :class="['flex-shrink-0 p-1.5 rounded-lg border transition-colors', showDivSettings ? 'bg-brand-50 border-brand-300 text-brand-700' : 'border-gray-200 text-gray-400 hover:bg-gray-50']"
+            title="Atur divisi filter">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Inline div settings panel -->
+        <div v-if="showDivSettings" class="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
+          <p class="text-xs font-semibold text-gray-600">Pilih divisi yang tampil di filter:</p>
+          <div class="flex flex-wrap gap-1.5">
+            <label v-for="d in allDivisions" :key="d"
+              class="flex items-center gap-1.5 px-2.5 py-1 rounded-full border cursor-pointer transition-all select-none text-xs font-semibold"
+              :class="posSelected.includes(d) ? 'bg-brand-700 border-brand-700 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-brand-400'">
+              <input type="checkbox" :value="d" v-model="posSelected" class="hidden" />
+              <span>{{ divIcon(d) }}</span>{{ d }}
+            </label>
+          </div>
+          <div class="flex gap-2">
+            <button @click="savePosSettings" :disabled="savingPosSettings" class="btn-primary btn-sm text-xs">
+              {{ savingPosSettings ? 'Menyimpan...' : 'Simpan' }}
+            </button>
+            <button @click="showDivSettings = false" class="btn-secondary btn-sm text-xs">Batal</button>
+          </div>
         </div>
       </div>
 
@@ -259,7 +289,11 @@ const cart = ref([])
 const search = ref('')
 const filterDiv = ref('')
 const loading = ref(false)
-const divisions = ref(['Bar', 'Kitchen', 'Titipan'])
+const allDivisions = ref([])
+const divisions = ref([])
+const posSelected = ref([])
+const showDivSettings = ref(false)
+const savingPosSettings = ref(false)
 const mobileView = ref('menu')
 const lastSaleId = ref(null)
 
@@ -395,11 +429,43 @@ async function printReceipt(saleId) {
   }
 }
 
+const LS_POS = 'pos_divisions_v1'
+
 async function loadDivisions() {
   try {
     const res = await api.get('/api/v1/settings/')
-    divisions.value = res.data.divisions || ['Bar', 'Kitchen', 'Titipan']
+    const divs = res.data.divisions || ['Bar', 'Kitchen', 'Titipan']
+    allDivisions.value = divs
+
+    // localStorage takes priority → backend fallback → semua divisi
+    const raw = localStorage.getItem(LS_POS)
+    const local = raw ? JSON.parse(raw).filter(d => divs.includes(d)) : null
+    const backend = res.data.pos_divisions?.length
+      ? res.data.pos_divisions.filter(d => divs.includes(d))
+      : null
+    divisions.value = local?.length ? local : backend?.length ? backend : [...divs]
   } catch {}
+}
+
+function openDivSettings() {
+  // Reset ke state yang sedang aktif (bukan state lama yg belum disimpan)
+  posSelected.value = [...divisions.value]
+  showDivSettings.value = !showDivSettings.value
+}
+
+async function savePosSettings() {
+  savingPosSettings.value = true
+  try {
+    localStorage.setItem(LS_POS, JSON.stringify(posSelected.value))
+    divisions.value = [...posSelected.value]
+    if (filterDiv.value && !divisions.value.includes(filterDiv.value)) filterDiv.value = ''
+    showDivSettings.value = false
+    toast.success('Filter POS disimpan!')
+    // Sync ke backend (best-effort, tidak blocking)
+    api.patch('/api/v1/settings/', { pos_divisions: posSelected.value }).catch(() => {})
+  } finally {
+    savingPosSettings.value = false
+  }
 }
 
 onMounted(async () => {
