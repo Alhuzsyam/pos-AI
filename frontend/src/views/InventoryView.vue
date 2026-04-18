@@ -211,7 +211,13 @@
             {{ printer.isConnecting.value ? 'Connecting...' : printer.pairedDevice.value ? 'Printer OK' : 'Hubungkan' }}
           </button>
         </div>
-        <p class="text-xs text-gray-400 mb-4">Edit jumlah yang perlu dibeli, atau hapus item yang tidak perlu dicetak.</p>
+        <div class="flex items-center gap-2 mb-3">
+          <p class="text-xs text-gray-400 flex-1">Edit jumlah yang perlu dibeli, atau hapus item yang tidak perlu dicetak.</p>
+          <select v-model="printJenisFilter" class="input py-1 text-xs w-36">
+            <option value="">Semua Jenis</option>
+            <option v-for="t in printJenisOptions" :key="t" :value="t">{{ t }}</option>
+          </select>
+        </div>
 
         <!-- Preview table -->
         <div class="flex-1 overflow-y-auto border border-claude-line rounded-xl mb-3">
@@ -225,7 +231,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(item, i) in printList" :key="item.id" class="border-b border-claude-line last:border-0">
+              <tr v-for="(item, i) in displayedPrintList" :key="item.id" class="border-b border-claude-line last:border-0">
                 <td class="px-3 py-2.5 text-gray-400 text-xs">{{ i + 1 }}</td>
                 <td class="px-3 py-2.5">
                   <p class="font-medium text-gray-800">{{ item.name }}</p>
@@ -242,7 +248,7 @@
                   </div>
                 </td>
                 <td class="px-2 py-2.5">
-                  <button @click="printList.splice(i, 1)"
+                  <button @click="removePrintItem(item.id)"
                     class="p-1 text-red-300 hover:text-red-500 transition-colors" title="Hapus dari daftar">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
@@ -250,7 +256,7 @@
                   </button>
                 </td>
               </tr>
-              <tr v-if="!printList.length">
+              <tr v-if="!displayedPrintList.length">
                 <td colspan="4" class="text-center text-gray-300 py-8 text-sm">Tidak ada item — semua stok aman 👍</td>
               </tr>
             </tbody>
@@ -328,6 +334,21 @@ const saving = ref(false)
 // Print shopping list
 const showPrintModal = ref(false)
 const printList = ref([])
+const printJenisFilter = ref('')
+
+const printJenisOptions = computed(() =>
+  [...new Set(printList.value.map(p => p.division).filter(Boolean))]
+)
+
+const displayedPrintList = computed(() =>
+  printJenisFilter.value
+    ? printList.value.filter(p => p.division === printJenisFilter.value)
+    : printList.value
+)
+
+function removePrintItem(id) {
+  printList.value = printList.value.filter(p => p.id !== id)
+}
 
 // Pagination
 const currentPage = ref(1)
@@ -456,6 +477,7 @@ async function doDelete() {
 }
 
 function openPrintModal() {
+  printJenisFilter.value = ''
   printList.value = lowStockItems.value.map(p => ({
     ...p,
     toBuy: Math.max(1, p.min_stock_level - p.current_stock),
