@@ -160,6 +160,38 @@ function buildReservationDPReceipt({ storeName, customerName, reservationDate, i
 }
 
 /**
+ * Build shopping list (daftar belanja bahan baku) ESC/POS content.
+ */
+function buildShoppingList(items) {
+  const date = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+  const time = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+
+  let c = ESC.INIT + ESC.CENTER
+  c += ESC.BOLD_ON + 'DAFTAR BELANJA\n' + ESC.BOLD_OFF
+  c += 'Bahan Baku\n'
+  c += ESC.LINE + ESC.LEFT
+  c += 'Tgl  : ' + date + '\n'
+  c += 'Waktu: ' + time + '\n'
+  c += 'Item : ' + items.length + ' bahan\n'
+  c += ESC.LINE
+
+  items.forEach((item, i) => {
+    const no   = String(i + 1).padStart(2) + '.'
+    const nama = item.name.length > 15 ? item.name.slice(0, 14) + '~' : item.name
+    const beli = String(item.toBuy) + ' ' + item.unit
+    // Col: "02. " (4) + nama padEnd(15) + beli padStart(7) = 26 chars
+    c += no + ' ' + nama.padEnd(15) + beli.padStart(7) + '\n'
+    c += '    [ ] Catat    [ ] Beli\n'
+  })
+
+  c += ESC.LINE
+  c += '[ ] Catat = cek ada sblm blnja\n'
+  c += '[ ] Beli  = centang sdh dibeli\n'
+  c += ESC.FEED
+  return c
+}
+
+/**
  * Build order list for kitchen/waiter.
  */
 function buildOrderList({ storeName, customerName, tableNumber, items }) {
@@ -198,6 +230,7 @@ export function usePrinter() {
     buildSaleReceipt,
     buildReservationDPReceipt,
     buildOrderList,
+    buildShoppingList,
     ESC,
   }
 }
