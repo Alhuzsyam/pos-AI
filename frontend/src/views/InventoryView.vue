@@ -11,6 +11,10 @@
     <!-- Filters -->
     <div class="flex gap-2 mb-4 flex-wrap">
       <input v-model="search" @input="currentPage = 1" class="input max-w-xs" placeholder="Cari produk..." />
+      <select v-model="filterJenis" @change="currentPage = 1" class="input w-36">
+        <option value="">Semua Jenis</option>
+        <option v-for="t in inventoryTypes" :key="t" :value="t">{{ t }}</option>
+      </select>
       <button @click="toggleLowStock" :class="['btn-sm', lowStockOnly ? 'btn-danger' : 'btn-secondary']">
         {{ lowStockOnly ? '🔴 Low Stock' : 'Semua Stok' }}
       </button>
@@ -321,6 +325,7 @@ const printer        = usePrinter()
 const products       = ref([])
 const inventoryTypes = ref(['Makanan', 'Minuman', 'Bumbu', 'Kemasan', 'Lainnya'])
 const search = ref('')
+const filterJenis = ref('')
 const lowStockOnly = ref(false)
 const showModal = ref(false)
 const form = reactive({ name: '', sku: '', current_stock: 0, unit: 'pcs', min_stock_level: 5, division: '' })
@@ -361,6 +366,7 @@ const lowStockItems = computed(() =>
 const filtered = computed(() =>
   products.value.filter(p =>
     (!search.value || p.name.toLowerCase().includes(search.value.toLowerCase())) &&
+    (!filterJenis.value || p.division === filterJenis.value) &&
     (!lowStockOnly.value || p.current_stock <= p.min_stock_level)
   )
 )
