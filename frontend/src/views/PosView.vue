@@ -1,23 +1,38 @@
 <template>
   <div class="h-full flex flex-col md:flex-row">
-    <!-- Menu Grid -->
-    <div class="flex-1 flex flex-col overflow-hidden border-r border-gray-100">
-      <div class="p-4 border-b border-gray-100 flex gap-2">
-        <input v-model="search" class="input flex-1" placeholder="Cari menu..." />
-        <select v-model="filterDiv" class="input w-auto">
-          <option value="">Semua</option>
-          <option v-for="d in divisions" :key="d" :value="d">{{ d }}</option>
-        </select>
+    <!-- Menu Panel -->
+    <div
+      class="flex-1 flex-col overflow-hidden border-r border-gray-100"
+      :class="mobileView === 'cart' ? 'hidden md:flex' : 'flex'"
+    >
+      <!-- Search + Tab Filter -->
+      <div class="p-3 md:p-4 border-b border-gray-100 space-y-2">
+        <input v-model="search" class="input w-full" placeholder="Cari menu..." />
+        <div class="flex gap-1.5 overflow-x-auto pb-0.5" style="scrollbar-width:none;-webkit-overflow-scrolling:touch">
+          <button
+            @click="filterDiv = ''"
+            :class="['flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all',
+              filterDiv === '' ? 'bg-brand-700 text-white border-brand-700' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400']"
+          >Semua</button>
+          <button
+            v-for="d in divisions" :key="d"
+            @click="filterDiv = d"
+            :class="['flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all',
+              filterDiv === d ? 'bg-brand-700 text-white border-brand-700' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400']"
+          ><span class="mr-1">{{ divIcon(d) }}</span>{{ d }}</button>
+        </div>
       </div>
-      <div class="flex-1 overflow-y-auto p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 content-start">
+
+      <!-- Menu Grid -->
+      <div class="flex-1 overflow-y-auto p-3 md:p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3 content-start pb-24 md:pb-4">
         <button
           v-for="item in filteredMenu"
           :key="item.id"
           @click="addToCart(item)"
-          class="card p-4 text-left hover:ring-2 hover:ring-brand-400 transition-all active:scale-95"
+          class="card p-3 md:p-4 text-left hover:ring-2 hover:ring-brand-400 transition-all active:scale-95"
         >
-          <div class="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center mb-3">
-            <span class="text-xl">{{ divIcon(item.division) }}</span>
+          <div class="w-8 h-8 md:w-10 md:h-10 bg-brand-50 rounded-xl flex items-center justify-center mb-2 md:mb-3">
+            <span class="text-lg md:text-xl">{{ divIcon(item.division) }}</span>
           </div>
           <p class="text-sm font-semibold text-gray-800 leading-tight">{{ item.name }}</p>
           <p class="text-xs text-brand-700 font-bold mt-1">{{ formatRp(item.price) }}</p>
@@ -27,14 +42,41 @@
           Menu tidak ditemukan
         </div>
       </div>
+
+      <!-- Mobile: floating cart button -->
+      <div class="md:hidden fixed bottom-4 right-4 z-20">
+        <button
+          @click="mobileView = 'cart'"
+          class="relative flex items-center gap-2 bg-brand-700 text-white px-4 py-3 rounded-2xl shadow-lg font-semibold text-sm active:scale-95 transition-all"
+        >
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+          </svg>
+          Keranjang
+          <span v-if="cart.length" class="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+            {{ cart.length }}
+          </span>
+        </button>
+      </div>
     </div>
 
     <!-- Cart -->
-    <div class="w-full md:w-80 flex flex-col bg-white">
+    <div
+      class="w-full md:w-80 flex-col bg-white"
+      :class="mobileView === 'menu' ? 'hidden md:flex' : 'flex'"
+    >
       <div class="p-4 border-b border-gray-100 flex items-center justify-between">
-        <div>
-          <h2 class="font-bold text-gray-900">Keranjang</h2>
-          <p class="text-xs text-gray-400">{{ cart.length }} item</p>
+        <div class="flex items-center gap-2">
+          <!-- Mobile back to menu -->
+          <button @click="mobileView = 'menu'" class="md:hidden p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+            </svg>
+          </button>
+          <div>
+            <h2 class="font-bold text-gray-900">Keranjang</h2>
+            <p class="text-xs text-gray-400">{{ cart.length }} item</p>
+          </div>
         </div>
         <!-- Printer status + connect button -->
         <button
@@ -218,6 +260,7 @@ const search = ref('')
 const filterDiv = ref('')
 const loading = ref(false)
 const divisions = ref(['Bar', 'Kitchen', 'Titipan'])
+const mobileView = ref('menu')
 const lastSaleId = ref(null)
 
 async function connectPrinter() {
