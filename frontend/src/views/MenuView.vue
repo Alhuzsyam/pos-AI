@@ -8,8 +8,26 @@
       <button @click="openAdd" class="btn-primary">+ Tambah Menu</button>
     </div>
 
+    <!-- Filter bar -->
+    <div class="flex flex-col gap-2 mb-5">
+      <input v-model="search" class="input max-w-xs" placeholder="Cari menu..." />
+      <div class="flex gap-1.5 overflow-x-auto pb-0.5" style="scrollbar-width:none">
+        <button
+          @click="filterDiv = ''"
+          :class="['flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all',
+            filterDiv === '' ? 'bg-brand-700 text-white border-brand-700' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400']"
+        >Semua</button>
+        <button
+          v-for="d in divisions" :key="d"
+          @click="filterDiv = d"
+          :class="['flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all',
+            filterDiv === d ? 'bg-brand-700 text-white border-brand-700' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400']"
+        ><span class="mr-1">{{ divIcon(d) }}</span>{{ d }}</button>
+      </div>
+    </div>
+
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      <div v-for="item in menu" :key="item.id" class="card p-5">
+      <div v-for="item in filteredMenu" :key="item.id" class="card p-5">
         <div class="flex items-center justify-between mb-3">
           <div class="w-10 h-10 bg-brand-50 border border-brand-100 rounded-lg flex items-center justify-center text-[18px]">
             {{ divIcon(item.division) }}
@@ -53,7 +71,9 @@
           </button>
         </div>
       </div>
-      <div v-if="!menu.length" class="col-span-full text-center text-claude-dust py-16 font-serif text-[16px]">Belum ada menu</div>
+      <div v-if="!filteredMenu.length" class="col-span-full text-center text-claude-dust py-16 font-serif text-[16px]">
+        {{ search || filterDiv ? 'Tidak ada menu yang cocok' : 'Belum ada menu' }}
+      </div>
     </div>
 
     <!-- Delete Confirm Modal -->
@@ -124,7 +144,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive } from 'vue'
+import { ref, computed, onMounted, reactive } from 'vue'
 import api from '@/composables/useApi'
 import { useToast } from 'vue-toastification'
 
@@ -132,6 +152,16 @@ const toast = useToast()
 const menu = ref([])
 const products = ref([])
 const divisions = ref(['Bar', 'Kitchen', 'Titipan'])
+const search = ref('')
+const filterDiv = ref('')
+
+const filteredMenu = computed(() =>
+  menu.value.filter(m =>
+    (!search.value || m.name.toLowerCase().includes(search.value.toLowerCase())) &&
+    (!filterDiv.value || m.division === filterDiv.value)
+  )
+)
+
 const showModal = ref(false)
 const editItem = ref(null)
 const form = reactive({ name: '', price: 0, division: 'Bar', category: '', description: '', recipes: [] })
